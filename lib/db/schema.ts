@@ -13,3 +13,17 @@ export const priceCache = sqliteTable("price_cache", {
   currency: text("currency"),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const transactions = sqliteTable("transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  holdingId: integer("holding_id").notNull().references(() => holdings.id),
+  type: text("type").notNull(), // buy | sell | dividend | fee
+  date: text("date").notNull(), // YYYY-MM-DD
+  shares: real("shares"),
+  price: real("price"),
+  fee: real("fee").notNull().default(0),
+  tax: real("tax").notNull().default(0),
+  currency: text("currency").notNull().default("USD"),
+  notes: text("notes"),
+  createdAt: integer("created_at").notNull(),
+});

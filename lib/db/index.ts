@@ -23,6 +23,19 @@ sqlite.exec(`
     currency TEXT,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    holding_id INTEGER NOT NULL REFERENCES holdings(id),
+    type TEXT NOT NULL,
+    date TEXT NOT NULL,
+    shares REAL,
+    price REAL,
+    fee REAL NOT NULL DEFAULT 0,
+    tax REAL NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    notes TEXT,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 export const db = drizzle(sqlite, { schema });

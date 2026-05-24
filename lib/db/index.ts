@@ -50,6 +50,16 @@ sqlite.exec(`
     base_currency TEXT NOT NULL,
     recorded_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS dividend_metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    holding_id INTEGER NOT NULL UNIQUE REFERENCES holdings(id),
+    ex_div_date TEXT,
+    pay_date TEXT,
+    amount_per_share REAL,
+    annual_dividend_rate REAL,
+    frequency TEXT,
+    fetched_at INTEGER NOT NULL
+  );
 `);
 
 // Non-destructive column additions for existing databases

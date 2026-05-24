@@ -36,6 +36,17 @@ export const portfolioSnapshots = sqliteTable("portfolio_snapshots", {
   recordedAt: integer("recorded_at").notNull(),
 });
 
+export const dividendMetadata = sqliteTable("dividend_metadata", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  holdingId: integer("holding_id").notNull().unique().references(() => holdings.id),
+  exDivDate: text("ex_div_date"),
+  payDate: text("pay_date"),
+  amountPerShare: real("amount_per_share"),
+  annualDividendRate: real("annual_dividend_rate"),
+  frequency: text("frequency"),
+  fetchedAt: integer("fetched_at").notNull(),
+});
+
 export const transactions = sqliteTable("transactions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   holdingId: integer("holding_id").notNull().references(() => holdings.id),

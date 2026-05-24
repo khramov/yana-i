@@ -1,0 +1,171 @@
+"use client";
+
+import useSWR from "swr";
+import { useState } from "react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+interface AllocationSlice {
+  label: string;
+  value: number;
+  percentage: number;
+}
+
+interface AllocationResponse {
+  baseCurrency: string;
+  slices: AllocationSlice[];
+}
+
+type GroupBy = "holding" | "sector" | "asset_class";
+
+const VIEWS: { key: GroupBy; label: string }[] = [
+  { key: "holding", label: "Holding" },
+  { key: "sector", label: "Sector" },
+  { key: "asset_class", label: "Asset Class" },
+];
+
+const PALETTE = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ef4444",
+  "#ec4899",
+  "#06b6d4",
+  "#84cc16",
+  "#f97316",
+  "#6366f1",
+];
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function fmtCurrency(n: number, currency: string) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload, currency }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0];
+  return (
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-sm text-sm">
+      <p className="font-medium">{d.name}</p>
+      <p className="text-muted-foreground">{fmtCurrency(d.value, currency)}</p>
+      <p className="text-muted-foreground text-xs">{d.payload.percentage.toFixed(1)}%</p>
+    </div>
+  );
+}
+
+export function AllocationChart() {
+  const [view, setView] = useState<GroupBy>("holding");
+  const { data, isLoading } = useSWR<AllocationResponse>(
+    `/api/portfolio/allocation?by=${view}`,
+    fetcher
+  );
+
+  const currency = data?.baseCurrency ?? "USD";
+  const slices = data?.slices ?? [];
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-base font-semibold">Allocation</CardTitle>
+        <div className="flex gap-1">
+          {VIEWS.map((v) => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={cn(
+                "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                v.key === view
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+
+      <CardContent className="pb-4">
+        {isLoading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : slices.length === 0 ? (
+          <div className="h-64 flex items-center justify-center">
+            <p className="text-muted-foreground text-sm">No open positions to display.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6 md:flex-row md:items-start">
+            <div className="w-full md:w-64 shrink-0">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={slices}
+                    dataKey="value"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="55%"
+                    outerRadius="80%"
+                    paddingAngle={2}
+                    strokeWidth={0}
+                  >
+                    {slices.map((_, i) => (
+                      <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip currency={currency} />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground text-xs border-b">
+                    <th className="pb-2 font-medium">Label</th>
+                    <th className="pb-2 font-medium text-right">Value</th>
+                    <th className="pb-2 font-medium text-right">Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slices.map((s, i) => (
+                    <tr key={s.label} className="border-b last:border-0">
+                      <td className="py-2 flex items-center gap-2 min-w-0">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                          style={{ background: PALETTE[i % PALETTE.length] }}
+                        />
+                        <span className="truncate">{s.label}</span>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">
+                        {fmtCurrency(s.value, currency)}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {s.percentage.toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

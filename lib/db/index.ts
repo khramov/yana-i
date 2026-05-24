@@ -52,4 +52,10 @@ sqlite.exec(`
   );
 `);
 
+// Non-destructive column additions for existing databases
+const holdingsCols = (sqlite.prepare("PRAGMA table_info(holdings)").all() as { name: string }[]).map((c) => c.name);
+if (!holdingsCols.includes("sector")) sqlite.exec("ALTER TABLE holdings ADD COLUMN sector TEXT");
+if (!holdingsCols.includes("asset_class")) sqlite.exec("ALTER TABLE holdings ADD COLUMN asset_class TEXT DEFAULT 'stock'");
+if (!holdingsCols.includes("currency")) sqlite.exec("ALTER TABLE holdings ADD COLUMN currency TEXT DEFAULT 'USD'");
+
 export const db = drizzle(sqlite, { schema });

@@ -4,6 +4,9 @@ export const holdings = sqliteTable("holdings", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   ticker: text("ticker").notNull().unique(),
   name: text("name"),
+  sector: text("sector"),
+  assetClass: text("asset_class").default("stock"),
+  currency: text("currency").default("USD"),
   createdAt: integer("created_at").notNull().default(0),
 });
 

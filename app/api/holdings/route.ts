@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { holdings } from "@/lib/db/schema";
-import { fetchQuotes } from "@/lib/yahoo";
+import { fetchQuoteDetails } from "@/lib/yahoo";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   }
   const symbol = ticker.trim().toUpperCase();
 
-  const [quote] = await fetchQuotes([symbol]);
+  const quote = await fetchQuoteDetails(symbol);
   if (quote.price === null) {
     return NextResponse.json(
       { error: `Ticker "${symbol}" not found` },
@@ -26,10 +26,17 @@ export async function POST(req: Request) {
 
   const now = Math.floor(Date.now() / 1000);
   db.insert(holdings)
-    .values({ ticker: symbol, name: quote.name, createdAt: now })
+    .values({
+      ticker: symbol,
+      name: quote.name,
+      sector: quote.sector,
+      assetClass: quote.assetClass,
+      currency: quote.currency ?? "USD",
+      createdAt: now,
+    })
     .onConflictDoUpdate({
       target: holdings.ticker,
-      set: { name: quote.name },
+      set: { name: quote.name, sector: quote.sector, assetClass: quote.assetClass, currency: quote.currency ?? "USD" },
     })
     .run();
 

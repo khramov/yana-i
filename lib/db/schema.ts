@@ -25,6 +25,14 @@ export const fxRates = sqliteTable(
   (t) => [primaryKey({ columns: [t.fromCurrency, t.toCurrency] })]
 );
 
+export const portfolioSnapshots = sqliteTable("portfolio_snapshots", {
+  date: text("date").primaryKey(), // YYYY-MM-DD
+  totalValue: real("total_value").notNull(),
+  costBasis: real("cost_basis").notNull(),
+  baseCurrency: text("base_currency").notNull(),
+  recordedAt: integer("recorded_at").notNull(),
+});
+
 export const transactions = sqliteTable("transactions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   holdingId: integer("holding_id").notNull().references(() => holdings.id),

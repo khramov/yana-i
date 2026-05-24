@@ -43,6 +43,13 @@ sqlite.exec(`
     fetched_at INTEGER NOT NULL,
     PRIMARY KEY (from_currency, to_currency)
   );
+  CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    date TEXT PRIMARY KEY,
+    total_value REAL NOT NULL,
+    cost_basis REAL NOT NULL,
+    base_currency TEXT NOT NULL,
+    recorded_at INTEGER NOT NULL
+  );
 `);
 
 export const db = drizzle(sqlite, { schema });

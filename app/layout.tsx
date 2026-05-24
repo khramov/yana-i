@@ -43,6 +43,9 @@ export default function RootLayout({
             <Link href="/dividends" className="text-muted-foreground hover:text-foreground transition-colors">
               Dividends
             </Link>
+            <Link href="/analytics" className="text-muted-foreground hover:text-foreground transition-colors">
+              Analytics
+            </Link>
           </nav>
           {children}
         </body>

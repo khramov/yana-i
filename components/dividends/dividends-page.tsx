@@ -28,6 +28,7 @@ interface DividendRow {
 }
 
 interface DividendData {
+  baseCurrency: string;
   totalAllTime: number;
   trailing12m: number;
   yieldOnCost: number | null;
@@ -104,6 +105,7 @@ export function DividendsPage() {
   if (isLoading) return <PageSkeleton />;
 
   const d = data ?? {
+    baseCurrency: "USD",
     totalAllTime: 0,
     trailing12m: 0,
     yieldOnCost: null,
@@ -111,11 +113,13 @@ export function DividendsPage() {
     rows: [],
   };
 
+  const bc = d.baseCurrency;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <KpiCard title="Total Received (All Time)" value={fmtCurrency(d.totalAllTime)} />
-        <KpiCard title="Trailing 12 Months" value={fmtCurrency(d.trailing12m)} />
+        <KpiCard title="Total Received (All Time)" value={fmtCurrency(d.totalAllTime, bc)} />
+        <KpiCard title="Trailing 12 Months" value={fmtCurrency(d.trailing12m, bc)} />
         <KpiCard title="Yield on Cost" value={fmtPct(d.yieldOnCost)} />
       </div>
 

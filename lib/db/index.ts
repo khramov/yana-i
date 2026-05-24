@@ -36,6 +36,13 @@ sqlite.exec(`
     notes TEXT,
     created_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS fx_rates (
+    from_currency TEXT NOT NULL,
+    to_currency TEXT NOT NULL,
+    rate REAL NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (from_currency, to_currency)
+  );
 `);
 
 export const db = drizzle(sqlite, { schema });

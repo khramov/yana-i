@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { computePositions } from "@/lib/portfolio";
 import { fetchQuotes } from "@/lib/yahoo";
+import { getBaseCurrency, getRate } from "@/lib/fx";
 import { db } from "@/lib/db";
 import { priceCache } from "@/lib/db/schema";
 import { inArray } from "drizzle-orm";
@@ -8,10 +9,11 @@ import { inArray } from "drizzle-orm";
 const CACHE_TTL_SECONDS = 15 * 60;
 
 export async function GET() {
+  const baseCurrency = getBaseCurrency();
   const positions = computePositions();
 
   if (positions.length === 0) {
-    return NextResponse.json([]);
+    return NextResponse.json({ baseCurrency, positions: [] });
   }
 
   const tickers = positions.map((p) => p.ticker);
@@ -48,16 +50,29 @@ export async function GET() {
     .all();
   const priceMap = new Map(allCached.map((c) => [c.ticker, c]));
 
+  // Pre-fetch FX rates for all unique native currencies
+  const nativeCurrencies = new Set(
+    positions.map((p) => priceMap.get(p.ticker)?.currency ?? p.currency)
+  );
+  const fxRateMap = new Map<string, number>();
+  await Promise.all(
+    [...nativeCurrencies].map(async (cur) => {
+      fxRateMap.set(cur, await getRate(cur, baseCurrency));
+    })
+  );
+
   const result = positions.map((p) => {
     const entry = priceMap.get(p.ticker);
+    const nativeCurrency = entry?.currency ?? p.currency;
+    const fxRate = fxRateMap.get(nativeCurrency) ?? 1;
     const currentPrice = entry?.price ?? null;
-    const currency = entry?.currency ?? "USD";
-    const marketValue = currentPrice != null ? p.sharesHeld * currentPrice : null;
-    const unrealizedPnl =
-      marketValue != null ? marketValue - p.totalCostBasis : null;
+    // Per-share values stay in native currency; portfolio totals in base
+    const marketValue = currentPrice != null ? p.sharesHeld * currentPrice * fxRate : null;
+    const costBasisBase = p.totalCostBasis * fxRate;
+    const unrealizedPnl = marketValue != null ? marketValue - costBasisBase : null;
     const pnlPct =
-      unrealizedPnl != null && p.totalCostBasis > 0
-        ? (unrealizedPnl / p.totalCostBasis) * 100
+      unrealizedPnl != null && costBasisBase > 0
+        ? (unrealizedPnl / costBasisBase) * 100
         : null;
 
     return {
@@ -65,15 +80,14 @@ export async function GET() {
       ticker: p.ticker,
       name: p.name,
       sharesHeld: p.sharesHeld,
-      avgCost: p.avgCost,
-      totalCostBasis: p.totalCostBasis,
-      currentPrice,
-      currency,
-      marketValue,
-      unrealizedPnl,
+      avgCost: p.avgCost,         // native currency, per-share
+      nativeCurrency,             // for formatting avgCost and currentPrice
+      currentPrice,               // native currency, per-share
+      marketValue,                // base currency
+      unrealizedPnl,              // base currency
       pnlPct,
     };
   });
 
-  return NextResponse.json(result);
+  return NextResponse.json({ baseCurrency, positions: result });
 }

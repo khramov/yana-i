@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, primaryKey } from "drizzle-orm/sqlite-core";
 
 export const holdings = sqliteTable("holdings", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -13,6 +13,17 @@ export const priceCache = sqliteTable("price_cache", {
   currency: text("currency"),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const fxRates = sqliteTable(
+  "fx_rates",
+  {
+    fromCurrency: text("from_currency").notNull(),
+    toCurrency: text("to_currency").notNull(),
+    rate: real("rate").notNull(),
+    fetchedAt: integer("fetched_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.fromCurrency, t.toCurrency] })]
+);
 
 export const transactions = sqliteTable("transactions", {
   id: integer("id").primaryKey({ autoIncrement: true }),

@@ -13,12 +13,16 @@ interface HoldingRow {
   name: string | null;
   sharesHeld: number;
   avgCost: number | null;
-  totalCostBasis: number;
+  nativeCurrency: string;
   currentPrice: number | null;
-  currency: string;
-  marketValue: number | null;
-  unrealizedPnl: number | null;
+  marketValue: number | null;   // base currency
+  unrealizedPnl: number | null; // base currency
   pnlPct: number | null;
+}
+
+interface HoldingsResponse {
+  baseCurrency: string;
+  positions: HoldingRow[];
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -40,7 +44,15 @@ function fmtShares(n: number) {
   }).format(n);
 }
 
-function PnlCell({ value, pct }: { value: number | null; pct: number | null }) {
+function PnlCell({
+  value,
+  pct,
+  currency,
+}: {
+  value: number | null;
+  pct: number | null;
+  currency: string;
+}) {
   if (value == null) return <span className="text-muted-foreground">—</span>;
   const positive = value >= 0;
   return (
@@ -48,12 +60,13 @@ function PnlCell({ value, pct }: { value: number | null; pct: number | null }) {
       {positive ? "+" : ""}
       {value.toLocaleString("en-US", {
         style: "currency",
-        currency: "USD",
+        currency,
         minimumFractionDigits: 2,
       })}
       {pct != null && (
         <span className="ml-1.5 text-xs opacity-75">
-          ({positive ? "+" : ""}{pct.toFixed(2)}%)
+          ({positive ? "+" : ""}
+          {pct.toFixed(2)}%)
         </span>
       )}
     </span>
@@ -62,15 +75,15 @@ function PnlCell({ value, pct }: { value: number | null; pct: number | null }) {
 
 export function HoldingsTable() {
   const [showClosed, setShowClosed] = useState(false);
-  const { data: rows, isLoading } = useSWR<HoldingRow[]>(
+  const { data, isLoading } = useSWR<HoldingsResponse>(
     "/api/portfolio/holdings",
     fetcher,
     { refreshInterval: 60_000 }
   );
 
-  const visible = rows
-    ? rows.filter((r) => showClosed || r.sharesHeld > 0)
-    : [];
+  const baseCurrency = data?.baseCurrency ?? "USD";
+  const rows = data?.positions ?? [];
+  const visible = rows.filter((r) => showClosed || r.sharesHeld > 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -94,8 +107,12 @@ export function HoldingsTable() {
               <th className="text-right px-4 py-3 font-medium">Shares</th>
               <th className="text-right px-4 py-3 font-medium">Avg Cost</th>
               <th className="text-right px-4 py-3 font-medium">Current Price</th>
-              <th className="text-right px-4 py-3 font-medium">Market Value</th>
-              <th className="text-right px-4 py-3 font-medium">Unrealized P&amp;L</th>
+              <th className="text-right px-4 py-3 font-medium">
+                Market Value ({baseCurrency})
+              </th>
+              <th className="text-right px-4 py-3 font-medium">
+                Unrealized P&amp;L ({baseCurrency})
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -112,7 +129,7 @@ export function HoldingsTable() {
             ) : visible.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                  {rows && rows.length > 0
+                  {rows.length > 0
                     ? 'No open positions. Toggle "Show closed" to see past holdings.'
                     : "No holdings yet. Add tickers from the dashboard and record transactions."}
                 </td>
@@ -134,16 +151,16 @@ export function HoldingsTable() {
                     {fmtShares(row.sharesHeld)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-mono">
-                    {fmt(row.avgCost, row.currency, 4)}
+                    {fmt(row.avgCost, row.nativeCurrency, 4)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-mono">
-                    {fmt(row.currentPrice, row.currency)}
+                    {fmt(row.currentPrice, row.nativeCurrency)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-mono">
-                    {fmt(row.marketValue, row.currency)}
+                    {fmt(row.marketValue, baseCurrency)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <PnlCell value={row.unrealizedPnl} pct={row.pnlPct} />
+                    <PnlCell value={row.unrealizedPnl} pct={row.pnlPct} currency={baseCurrency} />
                   </td>
                 </tr>
               ))

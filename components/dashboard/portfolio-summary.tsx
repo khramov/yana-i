@@ -14,6 +14,7 @@ interface Top5Entry {
 }
 
 interface SummaryData {
+  baseCurrency: string;
   totalValue: number | null;
   costBasis: number;
   unrealizedPnl: number | null;
@@ -25,11 +26,11 @@ interface SummaryData {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-function fmtCurrency(n: number | null) {
+function fmtCurrency(n: number | null, currency = "USD") {
   if (n == null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
@@ -113,6 +114,7 @@ export function PortfolioSummary() {
   if (isLoading) return <SummarySkeleton />;
 
   const d = data ?? {
+    baseCurrency: "USD",
     totalValue: null,
     costBasis: 0,
     unrealizedPnl: null,
@@ -122,16 +124,19 @@ export function PortfolioSummary() {
     top5: [],
   };
 
+  const bc = d.baseCurrency;
+  const fmt = (n: number | null) => fmtCurrency(n, bc);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <KpiCard title="Total Value" value={fmtCurrency(d.totalValue)} />
-        <KpiCard title="Cost Basis" value={fmtCurrency(d.costBasis)} />
+        <KpiCard title="Total Value" value={fmt(d.totalValue)} />
+        <KpiCard title="Cost Basis" value={fmt(d.costBasis)} />
         <KpiCard
           title="Unrealized P&L"
           value={
             d.unrealizedPnl != null
-              ? `${d.unrealizedPnl >= 0 ? "+" : ""}${fmtCurrency(d.unrealizedPnl)}`
+              ? `${d.unrealizedPnl >= 0 ? "+" : ""}${fmt(d.unrealizedPnl)}`
               : "—"
           }
           colorValue={d.unrealizedPnl}
@@ -141,7 +146,7 @@ export function PortfolioSummary() {
           value={fmtPct(d.totalReturnPct, { sign: true })}
           colorValue={d.totalReturnPct}
         />
-        <KpiCard title="Dividends Received" value={fmtCurrency(d.dividendsReceived)} />
+        <KpiCard title="Dividends Received" value={fmt(d.dividendsReceived)} />
         <KpiCard title="Open Positions" value={d.holdingsCount.toString()} />
       </div>
 
@@ -172,7 +177,7 @@ export function PortfolioSummary() {
                         )}
                       </td>
                       <td className="px-5 py-2.5 text-right font-mono">
-                        {fmtCurrency(p.marketValue)}
+                        {fmt(p.marketValue)}
                       </td>
                       <td className="px-5 py-2.5 text-right font-mono text-muted-foreground">
                         {fmtPct(p.weight)}

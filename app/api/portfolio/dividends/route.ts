@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { holdings, transactions } from "@/lib/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { holdings, transactions, priceCache } from "@/lib/db/schema";
+import { eq, asc, inArray } from "drizzle-orm";
 import { computePositions } from "@/lib/portfolio";
+import { getBaseCurrency, getRate, toBase } from "@/lib/fx";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const yearParam = searchParams.get("year");
   const filterYear = yearParam ? parseInt(yearParam, 10) : null;
+  const baseCurrency = getBaseCurrency();
 
   const divTxns = db
     .select({
@@ -31,6 +33,22 @@ export async function GET(req: NextRequest) {
   const positions = computePositions();
   const avgCostMap = new Map(positions.map((p) => [p.holdingId, p.avgCost]));
 
+  // Get native currencies from price cache for yield-on-cost calculation
+  const positionTickers = positions.map((p) => p.ticker);
+  const cachedPrices =
+    positionTickers.length > 0
+      ? db.select().from(priceCache).where(inArray(priceCache.ticker, positionTickers)).all()
+      : [];
+  const priceCurrencyMap = new Map(cachedPrices.map((c) => [c.ticker, c.currency ?? "USD"]));
+
+  // Convert each position's cost basis to base currency for portfolio yield
+  let totalCostBasisBase = 0;
+  for (const p of positions) {
+    const nativeCurrency = priceCurrencyMap.get(p.ticker) ?? p.currency;
+    const rate = await getRate(nativeCurrency, baseCurrency);
+    totalCostBasisBase += p.totalCostBasis * rate;
+  }
+
   const now = new Date();
   const trailing12mCutoff = new Date(now);
   trailing12mCutoff.setFullYear(trailing12mCutoff.getFullYear() - 1);
@@ -40,36 +58,39 @@ export async function GET(req: NextRequest) {
   let trailing12m = 0;
 
   const yearsSet = new Set<number>();
-  const allRows = divTxns.map((t) => {
-    const amount = t.price ?? 0;
-    const perShare = t.shares && t.shares > 0 ? amount / t.shares : null;
-    const avgCost = avgCostMap.get(t.holdingId) ?? null;
-    const yieldOnCost =
-      perShare != null && avgCost != null && avgCost > 0
-        ? (perShare / avgCost) * 100
-        : null;
+  const allRows = await Promise.all(
+    divTxns.map(async (t) => {
+      const amount = t.price ?? 0;
+      const amountBase = await toBase(amount, t.currency ?? "USD");
+      const perShare = t.shares && t.shares > 0 ? amount / t.shares : null;
+      const avgCost = avgCostMap.get(t.holdingId) ?? null;
+      const yieldOnCost =
+        perShare != null && avgCost != null && avgCost > 0
+          ? (perShare / avgCost) * 100
+          : null;
 
-    totalAllTime += amount;
-    if (t.date >= trailing12mDate) trailing12m += amount;
-    yearsSet.add(parseInt(t.date.slice(0, 4), 10));
+      totalAllTime += amountBase;
+      if (t.date >= trailing12mDate) trailing12m += amountBase;
+      yearsSet.add(parseInt(t.date.slice(0, 4), 10));
 
-    return {
-      id: t.id,
-      ticker: t.ticker,
-      name: t.name,
-      date: t.date,
-      amount,
-      shares: t.shares,
-      perShare,
-      tax: t.tax,
-      currency: t.currency,
-      yieldOnCost,
-    };
-  });
+      return {
+        id: t.id,
+        ticker: t.ticker,
+        name: t.name,
+        date: t.date,
+        amount,               // native currency (for per-share display)
+        amountBase,           // base currency (for totals)
+        shares: t.shares,
+        perShare,
+        tax: t.tax,
+        currency: t.currency,
+        yieldOnCost,
+      };
+    })
+  );
 
-  const totalCostBasis = positions.reduce((s, p) => s + p.totalCostBasis, 0);
   const portfolioYieldOnCost =
-    totalCostBasis > 0 ? (totalAllTime / totalCostBasis) * 100 : null;
+    totalCostBasisBase > 0 ? (totalAllTime / totalCostBasisBase) * 100 : null;
 
   const years = Array.from(yearsSet).sort((a, b) => b - a);
 
@@ -78,6 +99,7 @@ export async function GET(req: NextRequest) {
     : allRows;
 
   return NextResponse.json({
+    baseCurrency,
     totalAllTime,
     trailing12m,
     yieldOnCost: portfolioYieldOnCost,

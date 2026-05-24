@@ -9,6 +9,7 @@ export interface PositionData {
   sharesHeld: number;
   avgCost: number | null;
   totalCostBasis: number;
+  currency: string;
 }
 
 export function computePositions(): PositionData[] {
@@ -30,9 +31,11 @@ export function computePositions(): PositionData[] {
     const txns = txnsByHolding.get(h.id) ?? [];
     let shares = 0;
     let avgCostPerShare = 0;
+    let currency = "USD";
 
     for (const t of txns) {
       if (t.type === "buy" && t.shares != null && t.price != null) {
+        currency = t.currency ?? "USD";
         const newShares = t.shares;
         const lotCost = newShares * t.price + t.fee;
         avgCostPerShare =
@@ -55,6 +58,7 @@ export function computePositions(): PositionData[] {
       sharesHeld,
       avgCost: sharesHeld > 0 ? avgCostPerShare : null,
       totalCostBasis,
+      currency,
     };
   });
 }

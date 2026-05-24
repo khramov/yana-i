@@ -67,7 +67,7 @@ export function WatchlistWidget() {
   const isLoading = holdingsLoading || (!!tickers && pricesLoading);
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>Watchlist</CardTitle>
       </CardHeader>

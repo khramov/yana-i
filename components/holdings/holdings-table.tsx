@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { displayTicker } from "@/lib/ticker";
 
 interface HoldingRow {
   holdingId: number;
@@ -75,6 +78,8 @@ function PnlCell({
 
 export function HoldingsTable() {
   const [showClosed, setShowClosed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const { mutate: globalMutate } = useSWRConfig();
   const { data, isLoading } = useSWR<HoldingsResponse>(
     "/api/portfolio/holdings",
     fetcher,
@@ -84,6 +89,16 @@ export function HoldingsTable() {
   const baseCurrency = data?.baseCurrency ?? "USD";
   const rows = data?.positions ?? [];
   const visible = rows.filter((r) => showClosed || r.sharesHeld > 0);
+
+  async function refreshMetadata() {
+    setRefreshing(true);
+    try {
+      await fetch("/api/holdings/refresh-metadata", { method: "POST" });
+      await globalMutate(() => true);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -96,6 +111,17 @@ export function HoldingsTable() {
         <Label htmlFor="show-closed" className="text-sm text-muted-foreground cursor-pointer">
           Show closed positions
         </Label>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={refreshMetadata}
+          disabled={refreshing}
+          title="Re-fetch name, sector, asset class and currency from Yahoo"
+        >
+          <RefreshCw className={cn("w-3.5 h-3.5 mr-1.5", refreshing && "animate-spin")} />
+          {refreshing ? "Refreshing…" : "Refresh data"}
+        </Button>
       </div>
 
       <div className="rounded-lg border overflow-x-auto">
@@ -143,7 +169,7 @@ export function HoldingsTable() {
                     row.sharesHeld === 0 && "opacity-50"
                   )}
                 >
-                  <td className="px-4 py-3 font-semibold">{row.ticker}</td>
+                  <td className="px-4 py-3 font-semibold">{displayTicker(row.ticker)}</td>
                   <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">
                     {row.name ?? "—"}
                   </td>

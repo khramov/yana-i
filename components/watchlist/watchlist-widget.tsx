@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import {
   Card,
@@ -7,8 +8,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import { AddTickerForm } from "./add-ticker-form";
 import { WatchlistSkeleton } from "./watchlist-skeleton";
+import { displayTicker } from "@/lib/ticker";
 
 interface Holding {
   id: number;
@@ -51,6 +55,9 @@ export function WatchlistWidget() {
 
   const priceMap = new Map(prices?.map((p) => [p.ticker, p]) ?? []);
 
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+
   async function addTicker(ticker: string) {
     const res = await fetch("/api/holdings", {
       method: "POST",
@@ -64,6 +71,22 @@ export function WatchlistWidget() {
     mutateHoldings();
   }
 
+  async function removeTicker(id: number) {
+    setRemoveError(null);
+    setRemovingId(id);
+    try {
+      const res = await fetch(`/api/holdings/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setRemoveError(json.error ?? "Failed to remove");
+        return;
+      }
+      mutateHoldings();
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
   const isLoading = holdingsLoading || (!!tickers && pricesLoading);
 
   return (
@@ -73,6 +96,10 @@ export function WatchlistWidget() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <AddTickerForm onAdd={addTicker} />
+
+        {removeError && (
+          <p className="text-sm text-destructive">{removeError}</p>
+        )}
 
         {isLoading ? (
           <WatchlistSkeleton />
@@ -87,17 +114,29 @@ export function WatchlistWidget() {
               return (
                 <div
                   key={h.id}
-                  className="flex items-center justify-between py-3"
+                  className="group flex items-center justify-between py-3"
                 >
                   <div className="flex flex-col">
-                    <span className="font-medium text-sm">{h.ticker}</span>
+                    <span className="font-medium text-sm">{displayTicker(h.ticker)}</span>
                     <span className="text-xs text-muted-foreground">
                       {h.name ?? "—"}
                     </span>
                   </div>
-                  <span className="text-sm font-mono">
-                    {formatPrice(entry?.price ?? null, entry?.currency ?? null)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono">
+                      {formatPrice(entry?.price ?? null, entry?.currency ?? null)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                      title={`Remove ${displayTicker(h.ticker)}`}
+                      disabled={removingId === h.id}
+                      onClick={() => removeTicker(h.id)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               );
             })}

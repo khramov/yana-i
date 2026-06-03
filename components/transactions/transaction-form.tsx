@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SUPPORTED_CURRENCIES, CURRENCY_LABELS, DEFAULT_CURRENCY } from "@/lib/currencies";
+import { displayTicker } from "@/lib/ticker";
 
 interface Holding {
   id: number;
@@ -69,7 +71,7 @@ export function TransactionForm({
       date: new Date().toISOString().slice(0, 10),
       fee: 0,
       tax: 0,
-      currency: "USD",
+      currency: DEFAULT_CURRENCY,
     },
   });
 
@@ -136,7 +138,7 @@ export function TransactionForm({
               <SelectContent>
                 {holdings.map((h) => (
                   <SelectItem key={h.id} value={h.id.toString()}>
-                    {h.ticker} {h.name ? `— ${h.name}` : ""}
+                    {displayTicker(h.ticker)} {h.name ? `— ${h.name}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -234,7 +236,21 @@ export function TransactionForm({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="currency">Currency</Label>
-            <Input id="currency" placeholder="USD" {...register("currency")} />
+            <Select
+              value={watch("currency") ?? DEFAULT_CURRENCY}
+              onValueChange={(v) => v && setValue("currency", v)}
+            >
+              <SelectTrigger id="currency">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {CURRENCY_LABELS[c] ?? c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">

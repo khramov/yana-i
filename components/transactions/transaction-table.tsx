@@ -22,6 +22,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pencil, Trash2, Plus } from "lucide-react";
+import { displayTicker } from "@/lib/ticker";
+import { TransactionImport } from "./transaction-import";
 
 interface Holding {
   id: number;
@@ -136,10 +138,13 @@ export function TransactionTable() {
           placeholder="To"
         />
 
-        <Button className="ml-auto" onClick={openAdd}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          Add transaction
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <TransactionImport />
+          <Button onClick={openAdd}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Add transaction
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border overflow-x-auto">
@@ -187,7 +192,7 @@ export function TransactionTable() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3 font-medium">
-                    {row.holding?.ticker ?? `#${row.holdingId}`}
+                    {row.holding ? displayTicker(row.holding.ticker) : `#${row.holdingId}`}
                   </td>
                   <td className="px-4 py-3 tabular-nums">{row.date}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
@@ -252,7 +257,7 @@ export function TransactionTable() {
             This will permanently remove the{" "}
             <span className="font-medium">{deleting?.type}</span> transaction for{" "}
             <span className="font-medium">
-              {deleting?.holding?.ticker ?? `#${deleting?.holdingId}`}
+              {deleting?.holding ? displayTicker(deleting.holding.ticker) : `#${deleting?.holdingId}`}
             </span>{" "}
             on {deleting?.date}. This action cannot be undone.
           </p>

@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import { holdings, transactions, priceCache, portfolioSnapshots } from "@/lib/db/schema";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { fetchQuotes } from "@/lib/yahoo";
-import { getBaseCurrency, getRate } from "@/lib/fx";
+import { getRate } from "@/lib/fx";
 
 export interface PositionData {
   holdingId: number;
@@ -14,11 +14,12 @@ export interface PositionData {
   currency: string;
 }
 
-export function computePositions(): PositionData[] {
-  const allHoldings = db.select().from(holdings).all();
+export function computePositions(portfolioId: number): PositionData[] {
+  const allHoldings = db.select().from(holdings).where(eq(holdings.portfolioId, portfolioId)).all();
   const allTxns = db
     .select()
     .from(transactions)
+    .where(eq(transactions.portfolioId, portfolioId))
     .orderBy(asc(transactions.date), asc(transactions.id))
     .all();
 
@@ -65,15 +66,94 @@ export function computePositions(): PositionData[] {
   });
 }
 
+export interface EnrichedPosition {
+  holdingId: number;
+  ticker: string;
+  name: string | null;
+  assetClass: string;
+  sector: string | null;
+  sharesHeld: number;
+  nativeCurrency: string;
+  currentPriceNative: number | null;
+  currentPriceBase: number | null;
+  marketValueBase: number | null;
+}
+
 const CACHE_TTL_SECONDS = 15 * 60;
 
-export async function computePortfolioValue(): Promise<{
+/** Open positions enriched with refreshed prices and metadata, valued in base currency. */
+export async function computeEnrichedPositions(
+  portfolioId: number,
+  baseCurrency: string
+): Promise<EnrichedPosition[]> {
+  const positions = computePositions(portfolioId).filter((p) => p.sharesHeld > 0);
+  if (positions.length === 0) return [];
+
+  const tickers = positions.map((p) => p.ticker);
+  const now = Math.floor(Date.now() / 1000);
+
+  const cached = db.select().from(priceCache).where(inArray(priceCache.ticker, tickers)).all();
+  const stale = tickers.filter((t) => {
+    const hit = cached.find((c) => c.ticker === t);
+    return !hit || now - hit.updatedAt > CACHE_TTL_SECONDS;
+  });
+  if (stale.length > 0) {
+    const fresh = await fetchQuotes(stale);
+    for (const q of fresh) {
+      db.insert(priceCache)
+        .values({ ticker: q.ticker, price: q.price, currency: q.currency, updatedAt: now })
+        .onConflictDoUpdate({
+          target: priceCache.ticker,
+          set: { price: q.price, currency: q.currency, updatedAt: now },
+        })
+        .run();
+    }
+  }
+
+  const allCached = db.select().from(priceCache).where(inArray(priceCache.ticker, tickers)).all();
+  const priceMap = new Map(allCached.map((c) => [c.ticker, c]));
+
+  const holdingRows = db.select().from(holdings).where(eq(holdings.portfolioId, portfolioId)).all();
+  const metaMap = new Map(holdingRows.map((h) => [h.id, h]));
+
+  const nativeCurrencies = new Set(positions.map((p) => priceMap.get(p.ticker)?.currency ?? p.currency));
+  const fxRateMap = new Map<string, number>();
+  await Promise.all(
+    [...nativeCurrencies].map(async (cur) => {
+      fxRateMap.set(cur, await getRate(cur, baseCurrency));
+    })
+  );
+
+  return positions.map((p) => {
+    const entry = priceMap.get(p.ticker);
+    const nativeCurrency = entry?.currency ?? p.currency;
+    const fxRate = fxRateMap.get(nativeCurrency) ?? 1;
+    const currentPriceNative = entry?.price ?? null;
+    const meta = metaMap.get(p.holdingId);
+    return {
+      holdingId: p.holdingId,
+      ticker: p.ticker,
+      name: p.name,
+      assetClass: meta?.assetClass ?? "stock",
+      sector: meta?.sector ?? null,
+      sharesHeld: p.sharesHeld,
+      nativeCurrency,
+      currentPriceNative,
+      currentPriceBase: currentPriceNative != null ? currentPriceNative * fxRate : null,
+      marketValueBase: currentPriceNative != null ? p.sharesHeld * currentPriceNative * fxRate : null,
+    };
+  });
+}
+
+export async function computePortfolioValue(
+  portfolioId: number,
+  baseCurrency: string
+): Promise<{
   totalValue: number | null;
   costBasis: number;
   baseCurrency: string;
 }> {
-  const baseCurrency = getBaseCurrency();
-  const positions = computePositions().filter((p) => p.sharesHeld > 0);
+  const positions = computePositions(portfolioId).filter((p) => p.sharesHeld > 0);
   const tickers = positions.map((p) => p.ticker);
 
   if (tickers.length === 0) return { totalValue: null, costBasis: 0, baseCurrency };
@@ -122,16 +202,21 @@ export async function computePortfolioValue(): Promise<{
   return { totalValue, costBasis, baseCurrency };
 }
 
-export async function writeSnapshotIfNeeded(): Promise<void> {
+export async function writeSnapshotIfNeeded(portfolioId: number, baseCurrency: string): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
-  const existing = db.select().from(portfolioSnapshots).where(eq(portfolioSnapshots.date, today)).get();
+  const existing = db
+    .select()
+    .from(portfolioSnapshots)
+    .where(and(eq(portfolioSnapshots.portfolioId, portfolioId), eq(portfolioSnapshots.date, today)))
+    .get();
   if (existing) return;
 
-  const { totalValue, costBasis, baseCurrency } = await computePortfolioValue();
+  const { totalValue, costBasis } = await computePortfolioValue(portfolioId, baseCurrency);
   if (totalValue == null) return;
 
   db.insert(portfolioSnapshots)
     .values({
+      portfolioId,
       date: today,
       totalValue,
       costBasis,
@@ -139,7 +224,7 @@ export async function writeSnapshotIfNeeded(): Promise<void> {
       recordedAt: Math.floor(Date.now() / 1000),
     })
     .onConflictDoUpdate({
-      target: portfolioSnapshots.date,
+      target: [portfolioSnapshots.portfolioId, portfolioSnapshots.date],
       set: { totalValue, costBasis, baseCurrency, recordedAt: Math.floor(Date.now() / 1000) },
     })
     .run();

@@ -6,10 +6,6 @@ import { default as YahooFinance } from "yahoo-finance2";
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 const FX_CACHE_TTL = 3600; // 1 hour
 
-export function getBaseCurrency(): string {
-  return process.env.BASE_CURRENCY ?? "USD";
-}
-
 export async function getRate(from: string, to: string): Promise<number> {
   if (from === to) return 1;
 
@@ -46,7 +42,7 @@ export async function getRate(from: string, to: string): Promise<number> {
   return cached?.rate ?? 1;
 }
 
-export async function toBase(amount: number, fromCurrency: string): Promise<number> {
-  const rate = await getRate(fromCurrency, getBaseCurrency());
+export async function toBase(amount: number, fromCurrency: string, baseCurrency: string): Promise<number> {
+  const rate = await getRate(fromCurrency, baseCurrency);
   return amount * rate;
 }

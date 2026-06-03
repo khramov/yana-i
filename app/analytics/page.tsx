@@ -1,5 +1,6 @@
 import { GrowthChart } from "@/components/analytics/growth-chart";
 import { AllocationChart } from "@/components/analytics/allocation-chart";
+import { Recommendations } from "@/components/analytics/recommendations";
 
 export const metadata = { title: "Analytics — Yana" };
 
@@ -9,6 +10,7 @@ export default function Page() {
       <h1 className="text-2xl font-semibold">Analytics</h1>
       <GrowthChart />
       <AllocationChart />
+      <Recommendations />
     </main>
   );
 }

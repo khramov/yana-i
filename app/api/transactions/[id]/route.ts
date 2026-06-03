@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { transactions } from "@/lib/db/schema";
+import { transactions, holdings } from "@/lib/db/schema";
 import { transactionSchema } from "@/lib/validations";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { getCurrentPortfolioId } from "@/lib/portfolio-context";
 
 function computeTotal(
   shares: number | null | undefined,
@@ -17,11 +18,16 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const portfolioId = await getCurrentPortfolioId();
   const { id } = await params;
   const numId = parseInt(id, 10);
   if (isNaN(numId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const existing = db.select().from(transactions).where(eq(transactions.id, numId)).get();
+  const existing = db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.id, numId), eq(transactions.portfolioId, portfolioId)))
+    .get();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
@@ -31,6 +37,11 @@ export async function PUT(
   }
 
   const data = parsed.data;
+
+  const holding = db.select().from(holdings).where(eq(holdings.id, data.holdingId)).get();
+  if (!holding || holding.portfolioId !== portfolioId) {
+    return NextResponse.json({ error: "Holding not found in this portfolio" }, { status: 400 });
+  }
   const row = db
     .update(transactions)
     .set({
@@ -55,11 +66,16 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const portfolioId = await getCurrentPortfolioId();
   const { id } = await params;
   const numId = parseInt(id, 10);
   if (isNaN(numId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const existing = db.select().from(transactions).where(eq(transactions.id, numId)).get();
+  const existing = db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.id, numId), eq(transactions.portfolioId, portfolioId)))
+    .get();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   db.delete(transactions).where(eq(transactions.id, numId)).run();

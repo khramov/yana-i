@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { holdings, dividendMetadata } from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { getCurrentPortfolioId } from "@/lib/portfolio-context";
 import { default as YahooFinance } from "yahoo-finance2";
 
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
@@ -22,7 +24,8 @@ function detectFrequency(annual: number, perPayment: number): string | null {
 }
 
 export async function POST() {
-  const allHoldings = db.select().from(holdings).all();
+  const portfolioId = await getCurrentPortfolioId();
+  const allHoldings = db.select().from(holdings).where(eq(holdings.portfolioId, portfolioId)).all();
   const now = Math.floor(Date.now() / 1000);
   let refreshed = 0;
   const errors: string[] = [];
@@ -70,14 +73,31 @@ export async function POST() {
   return NextResponse.json({ refreshed, errors, refreshedAt: now });
 }
 
+async function currentHoldingIds(): Promise<number[]> {
+  const portfolioId = await getCurrentPortfolioId();
+  return db
+    .select({ id: holdings.id })
+    .from(holdings)
+    .where(eq(holdings.portfolioId, portfolioId))
+    .all()
+    .map((h) => h.id);
+}
+
 export async function DELETE() {
-  db.delete(dividendMetadata).run();
+  const ids = await currentHoldingIds();
+  if (ids.length > 0) {
+    db.delete(dividendMetadata).where(inArray(dividendMetadata.holdingId, ids)).run();
+  }
   return NextResponse.json({ ok: true });
 }
 
 // Allow reading last-refresh timestamp
 export async function GET() {
-  const rows = db.select().from(dividendMetadata).all();
+  const ids = await currentHoldingIds();
+  const rows =
+    ids.length > 0
+      ? db.select().from(dividendMetadata).where(inArray(dividendMetadata.holdingId, ids)).all()
+      : [];
   const lastRefreshed = rows.length > 0
     ? Math.max(...rows.map((r) => r.fetchedAt))
     : null;

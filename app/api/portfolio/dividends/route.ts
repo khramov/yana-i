@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { holdings, transactions, priceCache } from "@/lib/db/schema";
-import { eq, asc, inArray } from "drizzle-orm";
+import { and, eq, asc, inArray } from "drizzle-orm";
 import { computePositions } from "@/lib/portfolio";
-import { getBaseCurrency, getRate, toBase } from "@/lib/fx";
+import { getRate, toBase } from "@/lib/fx";
+import { getCurrentPortfolio } from "@/lib/portfolio-context";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const yearParam = searchParams.get("year");
   const filterYear = yearParam ? parseInt(yearParam, 10) : null;
-  const baseCurrency = getBaseCurrency();
+  const { id: portfolioId, baseCurrency } = await getCurrentPortfolio();
 
   const divTxns = db
     .select({
@@ -26,11 +27,11 @@ export async function GET(req: NextRequest) {
     })
     .from(transactions)
     .innerJoin(holdings, eq(transactions.holdingId, holdings.id))
-    .where(eq(transactions.type, "dividend"))
+    .where(and(eq(transactions.portfolioId, portfolioId), eq(transactions.type, "dividend")))
     .orderBy(asc(transactions.date), asc(transactions.id))
     .all();
 
-  const positions = computePositions();
+  const positions = computePositions(portfolioId);
   const avgCostMap = new Map(positions.map((p) => [p.holdingId, p.avgCost]));
 
   // Get native currencies from price cache for yield-on-cost calculation
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
   const allRows = await Promise.all(
     divTxns.map(async (t) => {
       const amount = t.price ?? 0;
-      const amountBase = await toBase(amount, t.currency ?? "USD");
+      const amountBase = await toBase(amount, t.currency ?? "USD", baseCurrency);
       const perShare = t.shares && t.shares > 0 ? amount / t.shares : null;
       const avgCost = avgCostMap.get(t.holdingId) ?? null;
       const yieldOnCost =

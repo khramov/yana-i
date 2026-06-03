@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { holdings, dividendMetadata } from "@/lib/db/schema";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { computePositions } from "@/lib/portfolio";
-import { getBaseCurrency, toBase } from "@/lib/fx";
+import { toBase } from "@/lib/fx";
+import { getCurrentPortfolio } from "@/lib/portfolio-context";
 
 export async function GET() {
-  const baseCurrency = getBaseCurrency();
-  const positions = computePositions().filter((p) => p.sharesHeld > 0);
+  const { id: portfolioId, baseCurrency } = await getCurrentPortfolio();
+  const positions = computePositions(portfolioId).filter((p) => p.sharesHeld > 0);
   const holdingIds = positions.map((p) => p.holdingId);
 
   if (holdingIds.length === 0) {
@@ -20,7 +21,7 @@ export async function GET() {
     .where(inArray(dividendMetadata.holdingId, holdingIds))
     .all();
 
-  const allHoldings = db.select().from(holdings).all();
+  const allHoldings = db.select().from(holdings).where(eq(holdings.portfolioId, portfolioId)).all();
   const holdingMap = new Map(allHoldings.map((h) => [h.id, h]));
   const positionMap = new Map(positions.map((p) => [p.holdingId, p]));
 
@@ -37,7 +38,7 @@ export async function GET() {
         const nativeCurrency = holding.currency ?? "USD";
         const amountPerShare = m.amountPerShare ?? 0;
         const estimatedIncomeNative = position.sharesHeld * amountPerShare;
-        const estimatedIncomeBase = await toBase(estimatedIncomeNative, nativeCurrency);
+        const estimatedIncomeBase = await toBase(estimatedIncomeNative, nativeCurrency, baseCurrency);
 
         return {
           ticker: holding.ticker,

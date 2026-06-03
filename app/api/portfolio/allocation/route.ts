@@ -3,12 +3,15 @@ import { db } from "@/lib/db";
 import { holdings, priceCache } from "@/lib/db/schema";
 import { computePositions } from "@/lib/portfolio";
 import { fetchQuotes } from "@/lib/yahoo";
-import { getBaseCurrency, getRate } from "@/lib/fx";
-import { inArray } from "drizzle-orm";
+import { getRate } from "@/lib/fx";
+import { getCurrentPortfolio } from "@/lib/portfolio-context";
+import { formatAssetClass } from "@/lib/asset-class";
+import { and, eq, inArray } from "drizzle-orm";
 
 const CACHE_TTL_SECONDS = 15 * 60;
 
 export interface AllocationSlice {
+  key: string;
   label: string;
   value: number;
   percentage: number;
@@ -23,8 +26,8 @@ export async function GET(req: Request) {
     ? (rawBy as GroupBy)
     : "holding";
 
-  const baseCurrency = getBaseCurrency();
-  const positions = computePositions().filter((p) => p.sharesHeld > 0);
+  const { id: portfolioId, baseCurrency } = await getCurrentPortfolio();
+  const positions = computePositions(portfolioId).filter((p) => p.sharesHeld > 0);
 
   if (positions.length === 0) {
     return NextResponse.json({ baseCurrency, slices: [] });
@@ -56,7 +59,11 @@ export async function GET(req: Request) {
   const priceMap = new Map(allCached.map((c) => [c.ticker, c]));
 
   // Load holding metadata (sector, asset_class)
-  const holdingRows = db.select().from(holdings).where(inArray(holdings.ticker, tickers)).all();
+  const holdingRows = db
+    .select()
+    .from(holdings)
+    .where(and(eq(holdings.portfolioId, portfolioId), inArray(holdings.ticker, tickers)))
+    .all();
   const holdingMeta = new Map(holdingRows.map((h) => [h.ticker, h]));
 
   // FX rates for all native currencies
@@ -69,7 +76,7 @@ export async function GET(req: Request) {
   );
 
   // Compute market value per position in base currency
-  const grouped = new Map<string, number>();
+  const grouped = new Map<string, { label: string; value: number }>();
   for (const p of positions) {
     const entry = priceMap.get(p.ticker);
     const nativeCurrency = entry?.currency ?? "USD";
@@ -79,22 +86,29 @@ export async function GET(req: Request) {
 
     const marketValue = p.sharesHeld * currentPrice * fxRate;
 
+    let key: string;
     let label: string;
     const meta = holdingMeta.get(p.ticker);
     if (by === "holding") {
+      key = p.ticker;
       label = p.ticker;
     } else if (by === "sector") {
-      label = meta?.sector ?? "Unknown";
+      key = meta?.sector ?? "Unknown";
+      label = key;
     } else {
-      label = formatAssetClass(meta?.assetClass ?? "stock");
+      key = meta?.assetClass ?? "stock";
+      label = formatAssetClass(key);
     }
 
-    grouped.set(label, (grouped.get(label) ?? 0) + marketValue);
+    const existing = grouped.get(key) ?? { label, value: 0 };
+    existing.value += marketValue;
+    grouped.set(key, existing);
   }
 
-  const total = [...grouped.values()].reduce((a, b) => a + b, 0);
+  const total = [...grouped.values()].reduce((a, b) => a + b.value, 0);
   const slices: AllocationSlice[] = [...grouped.entries()]
-    .map(([label, value]) => ({
+    .map(([key, { label, value }]) => ({
+      key,
       label,
       value,
       percentage: total > 0 ? (value / total) * 100 : 0,
@@ -102,13 +116,4 @@ export async function GET(req: Request) {
     .sort((a, b) => b.value - a.value);
 
   return NextResponse.json({ baseCurrency, slices });
-}
-
-function formatAssetClass(raw: string): string {
-  switch (raw) {
-    case "etf": return "ETF";
-    case "bond": return "Bond";
-    case "cash": return "Cash";
-    default: return "Stock";
-  }
 }

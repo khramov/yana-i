@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { computePositions } from "@/lib/portfolio";
 import { fetchQuotes } from "@/lib/yahoo";
-import { getBaseCurrency, getRate, toBase } from "@/lib/fx";
+import { getRate, toBase } from "@/lib/fx";
+import { getCurrentPortfolio } from "@/lib/portfolio-context";
 import { db } from "@/lib/db";
 import { priceCache, transactions } from "@/lib/db/schema";
-import { inArray, eq } from "drizzle-orm";
+import { inArray, eq, and } from "drizzle-orm";
 
 const CACHE_TTL_SECONDS = 15 * 60;
 
 export async function GET() {
-  const baseCurrency = getBaseCurrency();
-  const positions = computePositions();
+  const { id: portfolioId, baseCurrency } = await getCurrentPortfolio();
+  const positions = computePositions(portfolioId);
   const open = positions.filter((p) => p.sharesHeld > 0);
   const tickers = open.map((p) => p.ticker);
   const now = Math.floor(Date.now() / 1000);
@@ -78,11 +79,11 @@ export async function GET() {
   const divTxns = db
     .select()
     .from(transactions)
-    .where(eq(transactions.type, "dividend"))
+    .where(and(eq(transactions.portfolioId, portfolioId), eq(transactions.type, "dividend")))
     .all();
   let dividendsReceived = 0;
   for (const t of divTxns) {
-    dividendsReceived += await toBase(t.price ?? 0, t.currency ?? "USD");
+    dividendsReceived += await toBase(t.price ?? 0, t.currency ?? "USD", baseCurrency);
   }
 
   const withValue = enriched

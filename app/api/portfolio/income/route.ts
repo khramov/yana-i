@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { holdings, transactions, dividendMetadata } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { computePositions } from "@/lib/portfolio";
-import { getBaseCurrency, toBase } from "@/lib/fx";
+import { toBase } from "@/lib/fx";
+import { getCurrentPortfolio } from "@/lib/portfolio-context";
 
 export async function GET() {
-  const baseCurrency = getBaseCurrency();
+  const { id: portfolioId, baseCurrency } = await getCurrentPortfolio();
 
   const divTxns = db
     .select({
@@ -20,7 +21,7 @@ export async function GET() {
     })
     .from(transactions)
     .innerJoin(holdings, eq(transactions.holdingId, holdings.id))
-    .where(eq(transactions.type, "dividend"))
+    .where(and(eq(transactions.portfolioId, portfolioId), eq(transactions.type, "dividend")))
     .all();
 
   // Monthly breakdown
@@ -33,7 +34,7 @@ export async function GET() {
   const cutoffDate = trailing12mCutoff.toISOString().slice(0, 10);
 
   for (const t of divTxns) {
-    const amount = await toBase(t.price ?? 0, t.currency ?? "USD");
+    const amount = await toBase(t.price ?? 0, t.currency ?? "USD", baseCurrency);
     const month = t.date.slice(0, 7); // YYYY-MM
     monthlyMap.set(month, (monthlyMap.get(month) ?? 0) + amount);
 
@@ -50,7 +51,7 @@ export async function GET() {
     .sort((a, b) => a.month.localeCompare(b.month));
 
   // Forward annual income from dividend_metadata
-  const positions = computePositions().filter((p) => p.sharesHeld > 0);
+  const positions = computePositions(portfolioId).filter((p) => p.sharesHeld > 0);
   const holdingIds = positions.map((p) => p.holdingId);
   const metadata =
     holdingIds.length > 0
@@ -70,7 +71,7 @@ export async function GET() {
     if (!holding) continue;
 
     const annualNative = pos.sharesHeld * meta.annualDividendRate;
-    const annualBase = await toBase(annualNative, holding.currency ?? "USD");
+    const annualBase = await toBase(annualNative, holding.currency ?? "USD", baseCurrency);
     forwardAnnual += annualBase;
     byHoldingForward.set(pos.ticker, annualBase);
   }

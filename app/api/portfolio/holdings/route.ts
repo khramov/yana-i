@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { computePositions } from "@/lib/portfolio";
 import { fetchQuotes } from "@/lib/yahoo";
-import { getBaseCurrency, getRate } from "@/lib/fx";
+import { getRate } from "@/lib/fx";
+import { getCurrentPortfolio } from "@/lib/portfolio-context";
 import { db } from "@/lib/db";
 import { priceCache } from "@/lib/db/schema";
 import { inArray } from "drizzle-orm";
@@ -9,8 +10,8 @@ import { inArray } from "drizzle-orm";
 const CACHE_TTL_SECONDS = 15 * 60;
 
 export async function GET() {
-  const baseCurrency = getBaseCurrency();
-  const positions = computePositions();
+  const { id: portfolioId, baseCurrency } = await getCurrentPortfolio();
+  const positions = computePositions(portfolioId);
 
   if (positions.length === 0) {
     return NextResponse.json({ baseCurrency, positions: [] });

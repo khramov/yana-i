@@ -1,14 +1,26 @@
-import { sqliteTable, text, real, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, primaryKey, unique } from "drizzle-orm/sqlite-core";
 
-export const holdings = sqliteTable("holdings", {
+export const portfolios = sqliteTable("portfolios", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  ticker: text("ticker").notNull().unique(),
-  name: text("name"),
-  sector: text("sector"),
-  assetClass: text("asset_class").default("stock"),
-  currency: text("currency").default("USD"),
+  name: text("name").notNull(),
+  baseCurrency: text("base_currency").notNull().default("EUR"),
   createdAt: integer("created_at").notNull().default(0),
 });
+
+export const holdings = sqliteTable(
+  "holdings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    portfolioId: integer("portfolio_id").notNull().default(1),
+    ticker: text("ticker").notNull(),
+    name: text("name"),
+    sector: text("sector"),
+    assetClass: text("asset_class").default("stock"),
+    currency: text("currency").default("USD"),
+    createdAt: integer("created_at").notNull().default(0),
+  },
+  (t) => [unique().on(t.portfolioId, t.ticker)]
+);
 
 export const priceCache = sqliteTable("price_cache", {
   ticker: text("ticker").primaryKey(),
@@ -28,13 +40,18 @@ export const fxRates = sqliteTable(
   (t) => [primaryKey({ columns: [t.fromCurrency, t.toCurrency] })]
 );
 
-export const portfolioSnapshots = sqliteTable("portfolio_snapshots", {
-  date: text("date").primaryKey(), // YYYY-MM-DD
-  totalValue: real("total_value").notNull(),
-  costBasis: real("cost_basis").notNull(),
-  baseCurrency: text("base_currency").notNull(),
-  recordedAt: integer("recorded_at").notNull(),
-});
+export const portfolioSnapshots = sqliteTable(
+  "portfolio_snapshots",
+  {
+    portfolioId: integer("portfolio_id").notNull().default(1),
+    date: text("date").notNull(), // YYYY-MM-DD
+    totalValue: real("total_value").notNull(),
+    costBasis: real("cost_basis").notNull(),
+    baseCurrency: text("base_currency").notNull(),
+    recordedAt: integer("recorded_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.portfolioId, t.date] })]
+);
 
 export const dividendMetadata = sqliteTable("dividend_metadata", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -49,6 +66,7 @@ export const dividendMetadata = sqliteTable("dividend_metadata", {
 
 export const transactions = sqliteTable("transactions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  portfolioId: integer("portfolio_id").notNull().default(1),
   holdingId: integer("holding_id").notNull().references(() => holdings.id),
   type: text("type").notNull(), // buy | sell | dividend | fee
   date: text("date").notNull(), // YYYY-MM-DD
@@ -60,3 +78,16 @@ export const transactions = sqliteTable("transactions", {
   notes: text("notes"),
   createdAt: integer("created_at").notNull(),
 });
+
+export const goals = sqliteTable(
+  "goals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    portfolioId: integer("portfolio_id").notNull(),
+    scope: text("scope").notNull(), // holding | asset_class
+    targetKey: text("target_key").notNull(), // ticker or asset class
+    targetPct: real("target_pct").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [unique().on(t.portfolioId, t.scope, t.targetKey)]
+);

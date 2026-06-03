@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { displayTicker } from "@/lib/ticker";
 
 interface DividendRow {
   id: number;
@@ -186,7 +187,7 @@ export function DividendsPage() {
                 {d.rows.map((row) => (
                   <tr key={row.id} className="border-b last:border-0 hover:bg-muted/40">
                     <td className="px-5 py-2.5">
-                      <span className="font-medium">{row.ticker}</span>
+                      <span className="font-medium">{displayTicker(row.ticker)}</span>
                       {row.name && (
                         <span className="ml-2 text-xs text-muted-foreground">
                           {row.name}

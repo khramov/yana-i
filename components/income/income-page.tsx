@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { displayTicker } from "@/lib/ticker";
 import { Button } from "@/components/ui/button";
 
 interface MonthlyIncome {
@@ -252,7 +253,7 @@ export function IncomePage() {
                 {byHolding.map((h) => (
                   <tr key={h.ticker} className="border-b last:border-0">
                     <td className="py-2">
-                      <span className="font-medium">{h.ticker}</span>
+                      <span className="font-medium">{displayTicker(h.ticker)}</span>
                       {h.name && (
                         <span className="text-muted-foreground ml-2 text-xs truncate max-w-[200px] inline-block align-middle">
                           {h.name}

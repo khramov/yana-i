@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { displayTicker } from "@/lib/ticker";
 
 interface Top5Entry {
   ticker: string;
@@ -171,7 +172,7 @@ export function PortfolioSummary() {
                   return (
                     <tr key={p.ticker} className="border-b last:border-0 hover:bg-muted/40">
                       <td className="px-5 py-2.5">
-                        <span className="font-medium">{p.ticker}</span>
+                        <span className="font-medium">{displayTicker(p.ticker)}</span>
                         {p.name && (
                           <span className="ml-2 text-xs text-muted-foreground">{p.name}</span>
                         )}

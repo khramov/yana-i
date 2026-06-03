@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { displayTicker } from "@/lib/ticker";
 
 interface UpcomingEvent {
   ticker: string;
@@ -187,7 +188,7 @@ export function DividendCalendar() {
                                 key={`ex-${e.ticker}`}
                                 className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded px-1 truncate"
                               >
-                                EX {e.ticker}
+                                EX {displayTicker(e.ticker)}
                               </span>
                             ))}
                             {hasPay && (payMap.get(dateStr!)!).map((e) => (
@@ -195,7 +196,7 @@ export function DividendCalendar() {
                                 key={`pay-${e.ticker}`}
                                 className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 rounded px-1 truncate"
                               >
-                                PAY {e.ticker}
+                                PAY {displayTicker(e.ticker)}
                               </span>
                             ))}
                           </div>
@@ -224,7 +225,7 @@ export function DividendCalendar() {
                           >
                             {e.type === "ex-div" ? "EX-DIV" : "PAY"}
                           </span>
-                          <span className="font-medium">{e.ticker}</span>
+                          <span className="font-medium">{displayTicker(e.ticker)}</span>
                           {e.name && (
                             <span className="text-muted-foreground ml-2 text-xs">{e.name}</span>
                           )}

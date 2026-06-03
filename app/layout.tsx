@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+import { PortfolioSwitcher } from "@/components/portfolio/portfolio-switcher";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,6 +53,9 @@ export default function RootLayout({
             <Link href="/dividends/calendar" className="text-muted-foreground hover:text-foreground transition-colors">
               Calendar
             </Link>
+            <div className="ml-auto">
+              <PortfolioSwitcher />
+            </div>
           </nav>
           {children}
         </body>

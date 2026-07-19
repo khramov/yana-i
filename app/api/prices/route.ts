@@ -3,10 +3,12 @@ import { db } from "@/lib/db";
 import { priceCache } from "@/lib/db/schema";
 import { fetchQuotes } from "@/lib/yahoo";
 import { inArray } from "drizzle-orm";
+import { requireUser } from "@/lib/auth";
 
 const CACHE_TTL_SECONDS = 15 * 60;
 
 export async function GET(req: Request) {
+  await requireUser();
   const { searchParams } = new URL(req.url);
   const raw = searchParams.get("tickers") ?? "";
   const tickers = raw

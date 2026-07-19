@@ -8,15 +8,21 @@ import {
   goals,
   dividendMetadata,
 } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { isSupportedCurrency } from "@/lib/currencies";
+import { requireUser } from "@/lib/auth";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser();
   const { id } = await params;
   const numId = parseInt(id, 10);
   if (Number.isNaN(numId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const existing = db.select().from(portfolios).where(eq(portfolios.id, numId)).get();
+  const existing = db
+    .select()
+    .from(portfolios)
+    .where(and(eq(portfolios.id, numId), eq(portfolios.userId, user.id)))
+    .get();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
@@ -39,11 +45,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser();
   const { id } = await params;
   const numId = parseInt(id, 10);
   if (Number.isNaN(numId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const all = db.select().from(portfolios).all();
+  const all = db.select().from(portfolios).where(eq(portfolios.userId, user.id)).all();
   if (!all.some((p) => p.id === numId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -68,6 +75,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   db.delete(goals).where(eq(goals.portfolioId, numId)).run();
   db.delete(portfolios).where(eq(portfolios.id, numId)).run();
 
-  const fallback = db.select().from(portfolios).get();
+  const fallback = db.select().from(portfolios).where(eq(portfolios.userId, user.id)).get();
   return NextResponse.json({ ok: true, fallbackId: fallback?.id ?? null });
 }

@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { portfolios } from "@/lib/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { requireUser } from "@/lib/auth";
 
 import { DEFAULT_CURRENCY } from "@/lib/currencies";
 export { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
@@ -14,32 +15,50 @@ export interface Portfolio {
   baseCurrency: string;
 }
 
-export function getDefaultPortfolio(): Portfolio {
-  const first = db.select().from(portfolios).orderBy(asc(portfolios.id)).get();
+/** The signed-in user's first portfolio, creating one if they have none. */
+export function getDefaultPortfolioForUser(userId: number): Portfolio {
+  const first = db
+    .select()
+    .from(portfolios)
+    .where(eq(portfolios.userId, userId))
+    .orderBy(asc(portfolios.id))
+    .get();
   if (first) return first;
-  // Should never happen (migration seeds one), but stay safe.
+
   const now = Math.floor(Date.now() / 1000);
   return db
     .insert(portfolios)
-    .values({ name: "Main Portfolio", baseCurrency: DEFAULT_CURRENCY, createdAt: now })
+    .values({ userId, name: "Main Portfolio", baseCurrency: DEFAULT_CURRENCY, createdAt: now })
     .returning()
     .get();
 }
 
-export function getPortfolioById(id: number): Portfolio | null {
-  return db.select().from(portfolios).where(eq(portfolios.id, id)).get() ?? null;
+/** Look up a portfolio by id, scoped to the given owner. Returns null if not owned. */
+export function getOwnedPortfolioById(id: number, userId: number): Portfolio | null {
+  return (
+    db
+      .select()
+      .from(portfolios)
+      .where(and(eq(portfolios.id, id), eq(portfolios.userId, userId)))
+      .get() ?? null
+  );
 }
 
-/** Resolve the active portfolio from the request cookie, falling back to the first. */
+/**
+ * Resolve the active portfolio for the signed-in user from the request cookie,
+ * falling back to their first portfolio. Only ever returns a portfolio the user owns.
+ * Throws UnauthorizedError when there is no valid session.
+ */
 export async function getCurrentPortfolio(): Promise<Portfolio> {
+  const user = await requireUser();
   const store = await cookies();
   const raw = store.get(PORTFOLIO_COOKIE)?.value;
   const id = raw ? parseInt(raw, 10) : NaN;
   if (!Number.isNaN(id)) {
-    const found = getPortfolioById(id);
+    const found = getOwnedPortfolioById(id, user.id);
     if (found) return found;
   }
-  return getDefaultPortfolio();
+  return getDefaultPortfolioForUser(user.id);
 }
 
 export async function getCurrentPortfolioId(): Promise<number> {

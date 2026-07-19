@@ -56,13 +56,13 @@ apt install -y curl wget git build-essential
 ### 2. Create Application User (optional but recommended)
 
 ```bash
-useradd -m -s /bin/bash appuser
-usermod -aG sudo appuser
+useradd -m -s /bin/bash poke
+usermod -aG sudo poke
 ```
 
 Switch to the app user:
 ```bash
-sudo -u appuser -i
+sudo -u poke -i
 ```
 
 ### 3. Install Node.js 20
@@ -88,9 +88,14 @@ sudo systemctl enable nginx
 ### 1. Clone Repository
 
 ```bash
-cd /home/appuser
-git clone <your-repo-url> myapp
-cd myapp
+cd /home/poke
+
+ssh-keygen -t ed25519 -C "deployment-key" -f ./github_deploy_key -N ""
+eval "$(ssh-agent -s)"
+ssh-add github_deploy_key
+
+git clone <your-repo-url> poke
+cd poke
 ```
 
 ### 2. Install Dependencies
@@ -107,6 +112,15 @@ npm run build
 
 This creates `.next/` directory with the optimized build.
 
+Since `next.config.ts` sets `output: "standalone"`, the standalone server does **not** include static assets — copy them in manually after every build:
+
+```bash
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
+```
+
+Without this step, the app runs but all CSS/JS chunks 404 and pages render unstyled.
+
 ### 4. Create Systemd Service
 
 Create `/etc/systemd/system/nextjs.service`:
@@ -118,11 +132,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=appuser
-WorkingDirectory=/home/appuser/myapp
+User=poke
+WorkingDirectory=/home/poke/poke
 Environment="NODE_ENV=production"
 Environment="PORT=3000"
-ExecStart=/usr/bin/node /home/appuser/myapp/.next/standalone/server.js
+ExecStart=/snap/bin/node /home/poke/poke/.next/standalone/server.js
 Restart=always
 RestartSec=10
 
@@ -146,12 +160,12 @@ sudo journalctl -u nextjs -f
 
 ### 5. Database Permissions
 
-The SQLite database file (`data/yana.db`) needs to be readable/writable by the `appuser`:
+The SQLite database file (`data/yana.db`) needs to be readable/writable by the `poke`:
 
 ```bash
-sudo chown -R appuser:appuser /home/appuser/myapp/data
-sudo chmod 755 /home/appuser/myapp/data
-sudo chmod 644 /home/appuser/myapp/data/*.db*
+sudo chown -R poke:poke /home/poke/poke/data
+sudo chmod 755 /home/poke/poke/data
+sudo chmod 644 /home/poke/poke/data/*.db*
 ```
 
 ---
@@ -160,7 +174,7 @@ sudo chmod 644 /home/appuser/myapp/data/*.db*
 
 Configure Nginx to proxy requests to Next.js and handle SSL.
 
-Create `/etc/nginx/sites-available/myapp`:
+Create `/etc/nginx/sites-available/poke`:
 
 ```nginx
 upstream nextjs {
@@ -210,7 +224,7 @@ server {
 Enable the site:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/poke /etc/nginx/sites-enabled/
 sudo nginx -t  # Test configuration
 sudo systemctl reload nginx
 ```
@@ -297,14 +311,14 @@ sudo ufw status
 Back up the SQLite database regularly:
 
 ```bash
-# Add to crontab -e (as appuser or root)
-0 2 * * * cp /home/appuser/myapp/data/yana.db /home/appuser/backups/yana_$(date +\%Y\%m\%d).db
+# Add to crontab -e (as poke or root)
+0 2 * * * cp /home/poke/poke/data/yana.db /home/poke/backups/yana_$(date +\%Y\%m\%d).db
 ```
 
 Create the backups directory first:
 ```bash
-sudo mkdir -p /home/appuser/backups
-sudo chown appuser:appuser /home/appuser/backups
+sudo mkdir -p /home/poke/backups
+sudo chown poke:poke /home/poke/backups
 ```
 
 ---
@@ -318,12 +332,14 @@ sudo chown appuser:appuser /home/appuser/backups
 ssh root@<your_server_ip>
 
 # Pull latest code
-cd /home/appuser/myapp
+cd /home/poke/poke
 git pull origin main
 
 # Rebuild
 npm ci
 npm run build
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
 
 # Restart service
 sudo systemctl restart nextjs
@@ -357,7 +373,7 @@ sudo kill -9 <PID>
 ### SQLite Database Locked
 
 - Ensure only one process accesses the database (Next.js server)
-- Check file permissions: `ls -la /home/appuser/myapp/data/yana.db*`
+- Check file permissions: `ls -la /home/poke/poke/data/yana.db*`
 - Restart Next.js: `sudo systemctl restart nextjs`
 
 ### Out of Memory
@@ -377,7 +393,7 @@ sudo systemctl reload nginx
 
 ## Production Checklist
 
-- [ ] Database file (`data/yana.db`) has correct permissions (appuser can read/write)
+- [ ] Database file (`data/yana.db`) has correct permissions (poke can read/write)
 - [ ] NODE_ENV is set to `production` in systemd service
 - [ ] Firewall enabled (ufw) with ports 22, 80, 443 open
 - [ ] SSL certificate active and auto-renewal configured

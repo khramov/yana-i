@@ -104,6 +104,28 @@ if (!cols("transactions").includes("portfolio_id")) {
   sqlite.exec("ALTER TABLE transactions ADD COLUMN portfolio_id INTEGER NOT NULL DEFAULT 1");
 }
 
+// --- Authentication / multi-user migration ---
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+`);
+
+// portfolios: add user_id (nullable). Existing portfolios stay unowned until the
+// seeded user adopts them (see scripts/seed-user.mjs).
+if (!cols("portfolios").includes("user_id")) {
+  sqlite.exec("ALTER TABLE portfolios ADD COLUMN user_id INTEGER");
+}
+
 // Table rebuilds below change a UNIQUE/PRIMARY KEY, so they must DROP referenced
 // tables. better-sqlite3 enables foreign_keys by default — disable during rebuild.
 const needHoldingsRebuild = !cols("holdings").includes("portfolio_id");

@@ -1,17 +1,25 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { portfolios } from "@/lib/db/schema";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getCurrentPortfolioId } from "@/lib/portfolio-context";
+import { requireUser } from "@/lib/auth";
 import { DEFAULT_CURRENCY, isSupportedCurrency } from "@/lib/currencies";
 
 export async function GET() {
-  const rows = db.select().from(portfolios).orderBy(asc(portfolios.id)).all();
+  const user = await requireUser();
+  const rows = db
+    .select()
+    .from(portfolios)
+    .where(eq(portfolios.userId, user.id))
+    .orderBy(asc(portfolios.id))
+    .all();
   const currentId = await getCurrentPortfolioId();
   return NextResponse.json({ portfolios: rows, currentId });
 }
 
 export async function POST(req: Request) {
+  const user = await requireUser();
   const body = await req.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const baseCurrency = isSupportedCurrency(body.baseCurrency) ? body.baseCurrency : DEFAULT_CURRENCY;
@@ -23,7 +31,7 @@ export async function POST(req: Request) {
   const now = Math.floor(Date.now() / 1000);
   const row = db
     .insert(portfolios)
-    .values({ name, baseCurrency, createdAt: now })
+    .values({ userId: user.id, name, baseCurrency, createdAt: now })
     .returning()
     .get();
 

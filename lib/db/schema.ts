@@ -1,7 +1,22 @@
 import { sqliteTable, text, real, integer, primaryKey, unique } from "drizzle-orm/sqlite-core";
 
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: integer("created_at").notNull().default(0),
+});
+
+export const sessions = sqliteTable("sessions", {
+  token: text("token").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
 export const portfolios = sqliteTable("portfolios", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id"),
   name: text("name").notNull(),
   baseCurrency: text("base_currency").notNull().default("EUR"),
   createdAt: integer("created_at").notNull().default(0),

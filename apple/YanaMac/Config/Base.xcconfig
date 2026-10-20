@@ -1,0 +1,13 @@
+// Shared build settings for the YanaMac targets.
+// Signing identity lives in Signing.xcconfig (git-ignored); copy Signing.xcconfig.example to start.
+
+YANA_BUNDLE_ID = com.example.yana
+YANA_DEVELOPMENT_TEAM =
+YANA_CLOUDKIT_CONTAINER = iCloud.$(YANA_BUNDLE_ID)
+
+#include? "Signing.xcconfig"
+
+MACOSX_DEPLOYMENT_TARGET = 14.0
+SWIFT_VERSION = 5.0
+DEVELOPMENT_TEAM = $(YANA_DEVELOPMENT_TEAM)
+CODE_SIGN_STYLE = Automatic

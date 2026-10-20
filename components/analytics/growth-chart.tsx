@@ -56,11 +56,22 @@ function fmtAxisDate(date: string, range: Range) {
   return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CustomTooltip({ active, payload, label, currency }: any) {
+interface TooltipEntry {
+  dataKey?: string | number;
+  value?: number;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string;
+  currency: string;
+}
+
+function CustomTooltip({ active, payload, label, currency }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
-  const value = payload.find((p: any) => p.dataKey === "totalValue")?.value;
-  const cost = payload.find((p: any) => p.dataKey === "costBasis")?.value;
+  const value = payload.find((p) => p.dataKey === "totalValue")?.value;
+  const cost = payload.find((p) => p.dataKey === "costBasis")?.value;
   const date = new Date(label + "T00:00:00").toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",

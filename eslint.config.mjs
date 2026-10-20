@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Native macOS app (Swift), not part of the Next.js build:
+    "apple/**",
   ]),
 ]);
 

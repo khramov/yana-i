@@ -40,3 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/
+
+# native macOS app (Xcode / SwiftPM)
+apple/**/.build/
+apple/**/.swiftpm/
+apple/**/DerivedData/
+apple/**/xcuserdata/
+apple/**/*.xcresult
+apple/YanaMac/Config/Signing.xcconfig

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { SESSION_COOKIE } from "@/lib/auth-constants";
 
 // Coarse, edge-safe gate: checks only for the presence of the session cookie.
 // Authoritative validation (expiry, user lookup) happens in the protected layout

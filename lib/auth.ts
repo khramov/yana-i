@@ -4,7 +4,9 @@ import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { sessions, users } from "@/lib/db/schema";
 
-export const SESSION_COOKIE = "session";
+import { SESSION_COOKIE } from "@/lib/auth-constants";
+
+export { SESSION_COOKIE } from "@/lib/auth-constants";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 export interface SessionUser {

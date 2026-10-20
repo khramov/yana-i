@@ -1,0 +1,6 @@
+ticker,type,date,shares,price,fee,tax,currency,notes
+VTI,buy,2024-01-10,10,240,1,,USD,first lot
+VTI,buy,2024-03-05,"2,5",250,,,USD,"decimal comma, quoted"
+KO,buy,2024-02-01,20,25,,,USD,
+KO,transfer,2024-02-15,5,25,,,USD,moved to another broker
+KO,dividend,2024-04-01,20,10,,1.5,USD,

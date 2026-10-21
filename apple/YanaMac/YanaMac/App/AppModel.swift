@@ -56,9 +56,15 @@ enum AppSheet: Identifiable, Equatable {
 /// What a CSV import did, for the result sheet.
 struct CSVImportOutcome: Equatable {
     var fileName: String
+    /// Rows added from the file.
     var imported: Int
     var holdingsCreated: Int
+    /// Earlier imported rows in the file's range that it replaced.
+    var replaced = 0
+    /// Hand-entered rows replaced by a matching file row.
+    var absorbed = 0
     var errors: [CSVLineError]
+    var warnings: [CSVLineError] = []
     /// Set when the whole file was rejected (missing columns, unreadable file).
     var fileError: String?
 }
@@ -301,10 +307,13 @@ final class AppModel {
         var outcome = CSVImportOutcome(fileName: url.lastPathComponent, imported: 0, holdingsCreated: 0, errors: [])
         do {
             let text = try String(contentsOf: url, encoding: .utf8)
-            let plan = try await repository.importCSV(text, into: portfolio.id)
-            outcome.imported = plan.importedCount
-            outcome.holdingsCreated = plan.holdingsToCreate.count
+            let plan = try await repository.importFile(text, into: portfolio.id)
+            outcome.imported = plan.added
+            outcome.holdingsCreated = plan.holdings.count
+            outcome.replaced = plan.replaced
+            outcome.absorbed = plan.absorbed
             outcome.errors = plan.errors
+            outcome.warnings = plan.warnings
         } catch let error as CSVImportError {
             outcome.fileError = error.message
         } catch {

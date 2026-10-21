@@ -16,6 +16,16 @@ func fx(_ from: Currency, _ to: Currency, _ rate: String) -> FXRate {
 }
 
 @Suite struct PortfolioValuationTests {
+    @Test func optionValueUsesMultiplier() {
+        let o = holding("PBR271217C00027000", assetClass: .option, multiplier: 100)
+        let v = PortfolioValuation(portfolio: portfolio(.usd), holdings: [o],
+                                   transactions: [tx(o, .buy, "2026-09-25", qty: "1", price: "2", fee: "1"),
+                                                  tx(o, .buy, "2026-09-25", qty: "3", price: "2.5", fee: "1")],
+                                   market: MarketSnapshot(quotes: [quote("PBR271217C00027000", "4")]))
+        #expect(v.positions.first?.marketValue == 1600)
+        #expect(v.positions.first?.unrealizedGain == 648)
+    }
+
     @Test func mixedCurrencyPosition() {
         let h = holding("MSFT", currency: .usd)
         let v = PortfolioValuation(portfolio: portfolio(.eur), holdings: [h],

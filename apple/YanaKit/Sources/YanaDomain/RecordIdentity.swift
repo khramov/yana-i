@@ -29,6 +29,11 @@ public enum RecordIdentity {
         UUID.v5(namespace: namespace, name: "holding|\(portfolioID.uuidString.lowercased())|\(normalizeTicker(ticker))")
     }
 
+    /// The importer's opening-balance row for a holding, so two devices importing the same statement converge.
+    public static func openingID(holdingID: UUID) -> UUID {
+        UUID.v5(namespace: namespace, name: "opening|\(holdingID.uuidString.lowercased())")
+    }
+
     /// Goal key as stored: the normalized ticker for holding goals, the asset-class raw value otherwise.
     public static func normalizeGoalKey(_ key: String, scope: GoalScope) -> String {
         switch scope {

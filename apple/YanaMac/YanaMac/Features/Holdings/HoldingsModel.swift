@@ -80,16 +80,28 @@ final class HoldingFormModel {
     var sector = ""
     var assetClass = AssetClass.default
     var currency = Currency.default
+    /// Option fields: the ticker and name are built from these when `assetClass` is `.option`.
+    var optionUnderlying = ""
+    var optionExpiry = Date()
+    var optionRight = OptionRight.call
+    var optionStrike = ""
+    var optionMultiplier = "100"
+    private(set) var optionError: String?
     private(set) var tickerError: String?
     /// Explains why manual entry is shown, or another non-field problem.
     private(set) var notice: String?
     private(set) var isWorking = false
 
     private let model: AppModel
+    private let locale: Locale
+    private let calendar: Calendar
 
-    init(model: AppModel, editing: HoldingRecord?) {
+    init(model: AppModel, editing: HoldingRecord?, locale: Locale = .current, calendar: Calendar = .current) {
         self.model = model
+        self.locale = locale
+        self.calendar = calendar
         if let holding = editing {
+            optionMultiplier = DecimalInput.text(holding.multiplier ?? 100, locale: locale)
             mode = .edit(holding)
             ticker = holding.ticker
             name = holding.name ?? ""
@@ -102,12 +114,38 @@ final class HoldingFormModel {
         }
     }
 
+    /// The contract the option fields describe, or nil until underlying and a positive strike are entered.
+    var optionPreview: OptionContract? {
+        let underlying = optionUnderlying.trimmingCharacters(in: .whitespaces)
+        guard !underlying.isEmpty, let strike = DecimalInput.parse(optionStrike, locale: locale), strike > 0 else { return nil }
+        return OptionContract(underlying: underlying, expiry: LocalDate(optionExpiry, calendar: calendar),
+                              right: optionRight, strike: strike)
+    }
+
+    private var isAddingOption: Bool {
+        if case .edit = mode { return false }
+        return assetClass == .option
+    }
+
     /// Returns the outcome, or `nil` when the form must stay open.
     func submit() async -> Outcome? {
         isWorking = true
         defer { isWorking = false }
         tickerError = nil
+        optionError = nil
         do {
+            if isAddingOption {
+                guard let contract = optionPreview else {
+                    optionError = "Enter the underlying and a strike greater than 0."
+                    return nil
+                }
+                guard let multiplier = DecimalInput.parse(optionMultiplier, locale: locale) else {
+                    optionError = "Enter the contract multiplier, usually 100."
+                    return nil
+                }
+                return try await add(HoldingDraft(ticker: contract.occSymbol, name: contract.displayName,
+                                                  assetClass: .option, currency: currency, multiplier: multiplier))
+            }
             switch mode {
             case .edit(let holding):
                 try await model.updateHolding(holding.id, draft)
@@ -133,7 +171,8 @@ final class HoldingFormModel {
             }
         } catch let error as ValidationError {
             tickerError = error.message(for: .ticker)
-            notice = tickerError == nil ? error.description : nil
+            optionError = error.message(for: .multiplier)
+            notice = tickerError == nil && optionError == nil ? error.description : nil
         } catch {
             notice = error.localizedDescription
         }
@@ -141,7 +180,13 @@ final class HoldingFormModel {
     }
 
     private var draft: HoldingDraft {
-        HoldingDraft(ticker: ticker, name: name, sector: sector, assetClass: assetClass, currency: currency)
+        var multiplier: Decimal?
+        if assetClass == .option {
+            multiplier = DecimalInput.parse(optionMultiplier, locale: locale)
+            if multiplier == nil, case .edit(let holding) = mode { multiplier = holding.multiplier }
+        }
+        return HoldingDraft(ticker: ticker, name: name, sector: sector, assetClass: assetClass, currency: currency,
+                            multiplier: multiplier)
     }
 
     private func add(_ draft: HoldingDraft) async throws -> Outcome {

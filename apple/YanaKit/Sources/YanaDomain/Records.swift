@@ -45,12 +45,16 @@ public struct HoldingRecord: SyncableRecord {
     public var sector: String?
     public var assetClass: AssetClass
     public var currency: Currency
+    /// Contract size for options (usually 100); `nil` means 1.
+    public var multiplier: Decimal?
     public var createdAt: Date
     public var version: RecordVersion
     public var deletedAt: Date?
 
+    public var effectiveMultiplier: Decimal { multiplier ?? 1 }
+
     public init(id: UUID, portfolioID: UUID, ticker: String, name: String? = nil, sector: String? = nil,
-                assetClass: AssetClass = .default, currency: Currency, createdAt: Date,
+                assetClass: AssetClass = .default, currency: Currency, multiplier: Decimal? = nil, createdAt: Date,
                 version: RecordVersion, deletedAt: Date? = nil) {
         self.id = id
         self.portfolioID = portfolioID
@@ -59,6 +63,7 @@ public struct HoldingRecord: SyncableRecord {
         self.sector = sector
         self.assetClass = assetClass
         self.currency = currency
+        self.multiplier = multiplier
         self.createdAt = createdAt
         self.version = version
         self.deletedAt = deletedAt
@@ -83,6 +88,10 @@ public struct TransactionRecord: SyncableRecord {
     public var tax: Decimal
     public var currency: Currency
     public var notes: String?
+    /// Set on rows an import created; hand-entered rows have none.
+    public var importSource: ImportSource?
+    /// Present only on the importer's opening-balance buy.
+    public var openingBalance: OpeningBalance?
     public var createdAt: Date
     public var version: RecordVersion
     public var deletedAt: Date?
@@ -90,6 +99,7 @@ public struct TransactionRecord: SyncableRecord {
     public init(id: UUID, portfolioID: UUID, holdingID: UUID, kind: TransactionKind, date: LocalDate,
                 quantity: Decimal? = nil, unitPrice: Decimal? = nil, amount: Decimal? = nil,
                 fee: Decimal = 0, tax: Decimal = 0, currency: Currency, notes: String? = nil,
+                importSource: ImportSource? = nil, openingBalance: OpeningBalance? = nil,
                 createdAt: Date, version: RecordVersion, deletedAt: Date? = nil) {
         self.id = id
         self.portfolioID = portfolioID
@@ -103,9 +113,27 @@ public struct TransactionRecord: SyncableRecord {
         self.tax = tax
         self.currency = currency
         self.notes = notes
+        self.importSource = importSource
+        self.openingBalance = openingBalance
         self.createdAt = createdAt
         self.version = version
         self.deletedAt = deletedAt
+    }
+}
+
+/// What an opening-balance buy was computed from: the latest statement's position for the holding, and the
+/// earliest imported statement start it is dated on.
+public struct OpeningBalance: Codable, Equatable, Hashable, Sendable {
+    public var asOf: LocalDate
+    public var targetQuantity: Decimal
+    public var targetCostBasis: Decimal
+    public var coveredFrom: LocalDate
+
+    public init(asOf: LocalDate, targetQuantity: Decimal, targetCostBasis: Decimal, coveredFrom: LocalDate) {
+        self.asOf = asOf
+        self.targetQuantity = targetQuantity
+        self.targetCostBasis = targetCostBasis
+        self.coveredFrom = coveredFrom
     }
 }
 

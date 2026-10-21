@@ -118,6 +118,9 @@ struct TransactionFormSheet: View {
     @State private var form: TransactionFormModel
     @Environment(\.dismiss) private var dismiss
     private let holdings: [HoldingRecord]
+
+    /// Options are traded in contracts, priced per underlying share.
+    private var isOption: Bool { holdings.first { $0.id == form.holdingID }?.assetClass == .option }
     private let openAddHolding: () -> Void
 
     init(model: AppModel, editing: TransactionRecord?) {
@@ -177,7 +180,8 @@ struct TransactionFormSheet: View {
             DatePicker("Date", selection: $form.date, displayedComponents: .date)
             FieldError(message: form.errors[.date])
             if form.kind != .fee {
-                TextField(form.kind == .dividend ? "Shares (optional)" : "Shares", text: $form.quantity)
+                TextField(form.kind == .dividend ? "Shares (optional)" : (isOption ? "Contracts" : "Shares"),
+                          text: $form.quantity)
                     .accessibilityIdentifier("transactionShares")
                 FieldError(message: form.errors[.quantity])
             }
@@ -221,7 +225,7 @@ struct CSVImportResultSheet: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 24) {
-                    Label("\(outcome.imported) imported", systemImage: "checkmark.circle")
+                    Label("\(outcome.imported) added", systemImage: "checkmark.circle")
                         .accessibilityIdentifier("importedCount")
                     Label("\(outcome.errors.count) failed", systemImage: "exclamationmark.triangle")
                         .accessibilityIdentifier("failedCount")
@@ -229,13 +233,20 @@ struct CSVImportResultSheet: View {
                         Label("\(outcome.holdingsCreated) new holdings", systemImage: "plus.circle")
                     }
                 }
+                if outcome.replaced > 0 || outcome.absorbed > 0 {
+                    HStack(spacing: 24) {
+                        Label("\(outcome.replaced) replaced", systemImage: "arrow.triangle.2.circlepath")
+                            .accessibilityIdentifier("replacedCount")
+                        Label("\(outcome.absorbed) matched hand entries", systemImage: "equal.circle")
+                            .accessibilityIdentifier("absorbedCount")
+                    }
+                }
                 if !outcome.errors.isEmpty {
-                    Table(outcome.errors, columns: {
-                        TableColumn("Line") { (e: CSVLineError) in Text(String(e.line)).monospacedDigit() }
-                            .width(50)
-                        TableColumn("Problem") { (e: CSVLineError) in Text(e.message) }
-                    })
-                    .frame(minHeight: 140)
+                    LineProblemTable(problems: outcome.errors)
+                }
+                if !outcome.warnings.isEmpty {
+                    Text("Warnings").font(.subheadline.weight(.semibold))
+                    LineProblemTable(problems: outcome.warnings)
                 }
             }
             HStack {
@@ -248,6 +259,20 @@ struct CSVImportResultSheet: View {
     }
 }
 
+/// File problems with their line numbers; line 0 means the problem is not tied to one line.
+struct LineProblemTable: View {
+    let problems: [CSVLineError]
+
+    var body: some View {
+        Table(problems, columns: {
+            TableColumn("Line") { (e: CSVLineError) in Text(e.line > 0 ? String(e.line) : "").monospacedDigit() }
+                .width(50)
+            TableColumn("Problem") { (e: CSVLineError) in Text(e.message) }
+        })
+        .frame(minHeight: 120)
+    }
+}
+
 extension CSVLineError: Identifiable {
-    public var id: Int { line }
+    public var id: String { "\(line):\(message)" }
 }

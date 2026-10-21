@@ -13,7 +13,7 @@ let package = Package(
         .target(name: "YanaDomain"),
         .target(name: "YanaSync", dependencies: ["YanaDomain"]),
         .target(name: "YanaMarketData", dependencies: ["YanaDomain"]),
-        .testTarget(name: "YanaDomainTests", dependencies: ["YanaDomain"]),
+        .testTarget(name: "YanaDomainTests", dependencies: ["YanaDomain"], resources: [.copy("Fixtures")]),
         .testTarget(name: "YanaSyncTests", dependencies: ["YanaSync"], resources: [.copy("Golden")]),
         .testTarget(name: "YanaMarketDataTests", dependencies: ["YanaMarketData"], resources: [.copy("Fixtures")]),
     ]

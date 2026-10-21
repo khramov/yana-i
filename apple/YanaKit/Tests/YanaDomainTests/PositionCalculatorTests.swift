@@ -5,6 +5,16 @@ import Testing
 @Suite struct PositionCalculatorTests {
     let h = holding("AAPL")
 
+    @Test func optionCostUsesMultiplier() {
+        let o = holding("PBR271217C00027000", assetClass: .option, multiplier: 100)
+        let txns = [tx(o, .buy, "2026-09-25", qty: "1", price: "2", fee: "1"),
+                    tx(o, .buy, "2026-09-25", qty: "3", price: "2.5", fee: "1")]
+        let p = PositionCalculator.position(for: o, transactions: txns)
+        #expect(p.shares == 4)
+        #expect(p.costBasis == 952)
+        #expect(p.averageCost == dec("2.38"))
+    }
+
     @Test func averageCostIncludesFees() {
         let txns = [tx(h, .buy, "2024-01-10", qty: "10", price: "100", fee: "5"),
                     tx(h, .buy, "2024-02-10", qty: "10", price: "110")]

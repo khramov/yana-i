@@ -21,8 +21,15 @@ public enum AssetClass: String, Codable, Sendable, CaseIterable, Hashable {
     case etf
     case bond
     case cash
+    case option
 
     public static let `default`: AssetClass = .stock
+}
+
+/// Which importer created a transaction. Hand-entered transactions have none.
+public enum ImportSource: String, Codable, Sendable, Hashable {
+    case ibkr
+    case csv
 }
 
 public enum TransactionKind: String, Codable, Sendable, CaseIterable, Hashable {

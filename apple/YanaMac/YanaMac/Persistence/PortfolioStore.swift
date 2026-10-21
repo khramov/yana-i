@@ -39,10 +39,12 @@ actor PortfolioStore {
         try fetch(StoredHolding.self, id)?.record
     }
 
-    func transactions(inPortfolio portfolioID: UUID) throws -> [TransactionRecord] {
-        try modelContext.fetch(FetchDescriptor<StoredTransaction>(
-            predicate: #Predicate { $0.portfolioID == portfolioID && $0.deletedAt == nil }))
-            .map(\.record)
+    func transactions(inPortfolio portfolioID: UUID, includingDeleted: Bool = false) throws -> [TransactionRecord] {
+        let rows = includingDeleted
+            ? try modelContext.fetch(FetchDescriptor<StoredTransaction>(predicate: #Predicate { $0.portfolioID == portfolioID }))
+            : try modelContext.fetch(FetchDescriptor<StoredTransaction>(
+                predicate: #Predicate { $0.portfolioID == portfolioID && $0.deletedAt == nil }))
+        return rows.map(\.record)
     }
 
     func transactions(ofHolding holdingID: UUID) throws -> [TransactionRecord] {

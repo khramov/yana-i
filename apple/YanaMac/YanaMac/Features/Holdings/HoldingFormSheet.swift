@@ -14,12 +14,73 @@ struct HoldingFormSheet: View {
         return false
     }
 
+    private var isOption: Binding<Bool> {
+        Binding(get: { form.assetClass == .option }, set: { form.assetClass = $0 ? .option : .default })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(isEditing ? "Edit \(form.ticker)" : "Add Holding")
                 .font(.headline)
                 .padding([.top, .horizontal])
             Form {
+                if !isEditing {
+                    Picker("Type", selection: isOption) {
+                        Text("Security").tag(false)
+                        Text("Option").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("holdingType")
+                }
+                if !isEditing && form.assetClass == .option {
+                    optionFields
+                } else {
+                    securityFields
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                if form.isWorking { ProgressView().controlSize(.small) }
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(isEditing ? "Save" : "Add") {
+                    Task { if await form.submit() != nil { dismiss() } }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(form.isWorking)
+                .accessibilityIdentifier("saveHolding")
+            }
+            .padding()
+        }
+        .frame(width: 420)
+    }
+
+    @ViewBuilder private var optionFields: some View {
+        TextField("Underlying", text: $form.optionUnderlying, prompt: Text("PBR"))
+            .accessibilityIdentifier("optionUnderlying")
+        DatePicker("Expiry", selection: $form.optionExpiry, displayedComponents: .date)
+        Picker("Right", selection: $form.optionRight) {
+            Text("Call").tag(OptionRight.call)
+            Text("Put").tag(OptionRight.put)
+        }
+        .pickerStyle(.segmented)
+        TextField("Strike", text: $form.optionStrike, prompt: Text("27"))
+            .accessibilityIdentifier("optionStrike")
+        TextField("Multiplier", text: $form.optionMultiplier, prompt: Text("100"))
+        Picker("Currency", selection: $form.currency) {
+            ForEach(Currency.allCases, id: \.self) { Text($0.code).tag($0) }
+        }
+        FieldError(message: form.optionError)
+        if let contract = form.optionPreview {
+            LabeledContent(contract.displayName, value: contract.occSymbol)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("optionPreview")
+        }
+    }
+
+    @ViewBuilder private var securityFields: some View {
                 TextField("Ticker", text: $form.ticker, prompt: Text("AAPL"))
                     .disabled(isEditing)
                     .accessibilityIdentifier("holdingTicker")
@@ -43,27 +104,14 @@ struct HoldingFormSheet: View {
                     Picker("Currency", selection: $form.currency) {
                         ForEach(Currency.allCases, id: \.self) { Text($0.code).tag($0) }
                     }
+                    if form.assetClass == .option {
+                        TextField("Multiplier", text: $form.optionMultiplier, prompt: Text("100"))
+                        FieldError(message: form.optionError)
+                    }
                 } else {
                     Text("Name, asset class, sector, and currency are looked up automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
-            .formStyle(.grouped)
-            HStack {
-                if form.isWorking { ProgressView().controlSize(.small) }
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button(isEditing ? "Save" : "Add") {
-                    Task { if await form.submit() != nil { dismiss() } }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(form.isWorking)
-                .accessibilityIdentifier("saveHolding")
-            }
-            .padding()
-        }
-        .frame(width: 420)
     }
 }

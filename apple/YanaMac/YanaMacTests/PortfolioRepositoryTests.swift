@@ -24,6 +24,32 @@ func makeRepository(clock: TestClock = TestClock()) async throws -> PortfolioRep
 func date(_ s: String) -> LocalDate { LocalDate(string: s)! }
 
 @Suite struct PortfolioRepositoryTests {
+    @Test func optionHoldingAndOpeningRoundTrip() async throws {
+        let repo = try await makeRepository()
+        let p = try await repo.createPortfolio(PortfolioDraft(name: "P"))
+        let at = Date(timeIntervalSince1970: 1_729_000_000)
+        let version = RecordVersion.initial(at: at, deviceID: repo.deviceID)
+        var option = HoldingRecord(id: RecordIdentity.holdingID(portfolioID: p.id, ticker: "PBR271217C00027000"),
+                                   portfolioID: p.id, ticker: "PBR271217C00027000", name: "PBR 17DEC27 27 C",
+                                   assetClass: .option, currency: .usd, multiplier: 100, createdAt: at, version: version)
+        var opening = TransactionRecord(
+            id: UUID(), portfolioID: p.id, holdingID: option.id, kind: .buy, date: date("2026-08-03"),
+            quantity: 20, unitPrice: 90, currency: .usd, notes: "Opening balance",
+            importSource: .ibkr,
+            openingBalance: OpeningBalance(asOf: date("2026-10-19"), targetQuantity: 30,
+                                           targetCostBasis: Decimal(string: "2801.25")!,
+                                           coveredFrom: date("2026-08-03")),
+            createdAt: Date(timeIntervalSince1970: 0), version: version)
+        try await repo.coordinator.commitLocalEdits([.holding(option), .transaction(opening)])
+
+        let storedHolding = try #require(try await repo.store.holding(option.id))
+        let storedTx = try #require(try await repo.store.transaction(opening.id))
+        option.version = storedHolding.version
+        opening.version = storedTx.version
+        #expect(storedHolding == option)
+        #expect(storedTx == opening)
+    }
+
     @Test func portfolioRoundTripAndDefaults() async throws {
         let repo = try await makeRepository()
         let created = try await repo.createPortfolio(PortfolioDraft(name: "  Long term "))
@@ -188,10 +214,47 @@ func date(_ s: String) -> LocalDate { LocalDate(string: s)! }
         VTI,transfer,2024-01-03,1,1,USD
         KO,dividend,2024-04-01,,12.5,USD
         """
-        let plan = try await repo.importCSV(csv, into: p.id)
-        #expect(plan.importedCount == 2 && plan.failedCount == 1 && plan.errors[0].line == 3)
+        let plan = try await repo.importFile(csv, into: p.id)
+        #expect(plan.added == 2 && plan.errors.count == 1 && plan.errors[0].line == 3)
         #expect(try await repo.store.holdings(inPortfolio: p.id).map(\.ticker) == ["AAPL", "KO"])
         #expect(try await repo.store.transactions(inPortfolio: p.id).count == 2)
+    }
+
+    func ibkrFixture() throws -> String {
+        try String(contentsOf: fixtureURL("ibkr-aug-oct.csv"), encoding: .utf8)
+    }
+
+    func shares(_ repo: PortfolioRepository, _ portfolioID: UUID) async throws -> [String: Decimal] {
+        let positions = PositionCalculator.positions(holdings: try await repo.store.holdings(inPortfolio: portfolioID),
+                                                     transactions: try await repo.store.transactions(inPortfolio: portfolioID))
+        return Dictionary(uniqueKeysWithValues: positions.map { ($0.ticker, $0.shares) })
+    }
+
+    @Test func ibkrImportTwiceIsStable() async throws {
+        let repo = try await makeRepository()
+        let p = try await repo.createPortfolio(PortfolioDraft(name: "P"))
+        let first = try await repo.importFile(try ibkrFixture(), into: p.id)
+        let second = try await repo.importFile(try ibkrFixture(), into: p.id)
+        #expect(first.added == 4 && second.added == 4 && second.replaced == 4)
+        let live = try await repo.store.transactions(inPortfolio: p.id)
+        #expect(live.filter { $0.openingBalance == nil }.count == 4)
+        #expect(live.filter { $0.openingBalance != nil }.count == 4) // AIFS, EMIM, SXR8, VWCE
+        #expect(try await shares(repo, p.id) == ["AIFS.DE": 12, "EMIM.AS": 7, "SXR8.DE": 2, "VWCE.DE": 30, "XEON.DE": 4,
+                                                 "PBR271217C00027000": 4])
+    }
+
+    @Test func handEditedImportIsOverwritten() async throws {
+        let repo = try await makeRepository()
+        let p = try await repo.createPortfolio(PortfolioDraft(name: "P"))
+        try await repo.importFile(try ibkrFixture(), into: p.id)
+        let vwce = try #require(try await repo.store.transactions(inPortfolio: p.id)
+            .first { $0.date == date("2026-08-14") })
+        let edited = try await repo.updateTransaction(vwce.id, TransactionDraft(
+            kind: .buy, date: vwce.date, quantity: 10, unitPrice: 999, fee: vwce.fee, currency: .eur))
+        #expect(edited.importSource == .ibkr)
+        try await repo.importFile(try ibkrFixture(), into: p.id)
+        let after = try await repo.store.transactions(inPortfolio: p.id).filter { $0.date == date("2026-08-14") }
+        #expect(after.count == 1 && after.first?.unitPrice == 100)
     }
 
     @Test func outboxClearsOnlyForUploadedVersion() async throws {

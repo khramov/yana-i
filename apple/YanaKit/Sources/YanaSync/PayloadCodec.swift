@@ -51,6 +51,7 @@ public enum PayloadCodec {
             put("sector", r.sector)
             put("assetClass", r.assetClass.rawValue)
             put("currency", r.currency.code)
+            put("multiplier", r.multiplier.map(decimal))
             put("createdAt", timestamp(r.createdAt))
         case .transaction(let r):
             put("portfolioID", uuid(r.portfolioID))
@@ -64,6 +65,11 @@ public enum PayloadCodec {
             put("tax", decimal(r.tax))
             put("currency", r.currency.code)
             put("notes", r.notes)
+            put("importSource", r.importSource?.rawValue)
+            put("openingBalance", r.openingBalance.map { o -> [String: Any] in
+                ["asOf": o.asOf.description, "coveredFrom": o.coveredFrom.description,
+                 "targetCostBasis": decimal(o.targetCostBasis), "targetQuantity": decimal(o.targetQuantity)]
+            })
             put("createdAt", timestamp(r.createdAt))
         case .goal(let r):
             put("portfolioID", uuid(r.portfolioID))
@@ -112,7 +118,7 @@ public enum PayloadCodec {
             return .holding(HoldingRecord(id: head.id, portfolioID: try f.uuid("portfolioID"), ticker: try f.string("ticker"),
                                           name: try f.optionalString("name"), sector: try f.optionalString("sector"),
                                           assetClass: try f.enumValue("assetClass"), currency: try f.enumValue("currency"),
-                                          createdAt: try f.timestamp("createdAt"), version: head.version,
+                                          multiplier: try f.optionalDecimal("multiplier"), createdAt: try f.timestamp("createdAt"), version: head.version,
                                           deletedAt: deletedAt))
         case .transaction:
             return .transaction(TransactionRecord(
@@ -121,6 +127,7 @@ public enum PayloadCodec {
                 quantity: try f.optionalDecimal("quantity"), unitPrice: try f.optionalDecimal("unitPrice"),
                 amount: try f.optionalDecimal("amount"), fee: try f.decimal("fee"), tax: try f.decimal("tax"),
                 currency: try f.enumValue("currency"), notes: try f.optionalString("notes"),
+                importSource: try f.optionalEnumValue("importSource"), openingBalance: try f.openingBalance(),
                 createdAt: try f.timestamp("createdAt"), version: head.version, deletedAt: deletedAt))
         case .goal:
             return .goal(GoalRecord(id: head.id, portfolioID: try f.uuid("portfolioID"), scope: try f.enumValue("scope"),
@@ -196,6 +203,19 @@ public enum PayloadCodec {
         func enumValue<E: RawRepresentable>(_ key: String) throws -> E where E.RawValue == String {
             guard let v = E(rawValue: try string(key)) else { throw fail(key) }
             return v
+        }
+
+        func optionalEnumValue<E: RawRepresentable>(_ key: String) throws -> E? where E.RawValue == String {
+            guard o[key] != nil else { return nil }
+            return try enumValue(key) as E
+        }
+
+        func openingBalance() throws -> OpeningBalance? {
+            guard o["openingBalance"] != nil else { return nil }
+            let r = Reader(try object("openingBalance"), path: path + "openingBalance.")
+            return OpeningBalance(asOf: try r.localDate("asOf"), targetQuantity: try r.decimal("targetQuantity"),
+                                  targetCostBasis: try r.decimal("targetCostBasis"),
+                                  coveredFrom: try r.localDate("coveredFrom"))
         }
 
         func optionalTimestamp(_ key: String) throws -> Date? {

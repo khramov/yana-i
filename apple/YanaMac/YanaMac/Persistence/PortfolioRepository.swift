@@ -92,7 +92,8 @@ actor PortfolioRepository {
         try await requireEditable(RecordKey(entity: .holding, id: id))
         let record = HoldingRecord(id: id, portfolioID: portfolioID, ticker: valid.ticker, name: valid.name,
                                    sector: valid.sector, assetClass: valid.assetClass ?? .default,
-                                   currency: valid.currency, createdAt: now(), version: placeholderVersion)
+                                   currency: valid.currency, multiplier: valid.multiplier, createdAt: now(),
+                                   version: placeholderVersion)
         return AddedHolding(holding: try await commit(.holding(record), as: HoldingRecord.self), alreadyExisted: false)
     }
 
@@ -108,6 +109,7 @@ actor PortfolioRepository {
         record.sector = valid.sector
         record.assetClass = valid.assetClass ?? .default
         record.currency = valid.currency
+        record.multiplier = valid.multiplier
         return try await commit(.holding(record), as: HoldingRecord.self)
     }
 
@@ -195,13 +197,16 @@ actor PortfolioRepository {
     // MARK: - CSV import
 
     /// Validates every row, then creates the needed holdings and the valid transactions in one save.
-    func importCSV(_ csv: String, into portfolioID: UUID) async throws -> CSVImportPlan {
+    /// Imports an IBKR Activity Statement or the app's own CSV, replacing earlier imports for the file's range.
+    func importFile(_ text: String, into portfolioID: UUID) async throws -> ImportPlan {
         _ = try await live(try await store.portfolio(portfolioID))
-        let plan = try CSVImportPlanner.plan(csv: csv, portfolioID: portfolioID,
-                                             existingHoldings: try await store.holdings(inPortfolio: portfolioID,
-                                                                                       includingDeleted: true),
+        let plan = try ImportReconciler.plan(text: text, portfolioID: portfolioID,
+                                             holdings: try await store.holdings(inPortfolio: portfolioID,
+                                                                                includingDeleted: true),
+                                             transactions: try await store.transactions(inPortfolio: portfolioID,
+                                                                                        includingDeleted: true),
                                              now: now(), deviceID: deviceID)
-        let records = plan.holdingsToCreate.map(AnyRecord.holding) + plan.transactionsToInsert.map(AnyRecord.transaction)
+        let records = plan.holdings.map(AnyRecord.holding) + plan.transactions.map(AnyRecord.transaction)
         if !records.isEmpty { try await coordinator.commitLocalEdits(records) }
         return plan
     }

@@ -51,6 +51,12 @@ cd apple/YanaMac
 xcodebuild test -scheme YanaMac -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
 
+Run them in Release too. Some SwiftData predicate failures only show up in optimized builds, where they crash instead of failing a test:
+
+```sh
+xcodebuild test -scheme YanaMac -configuration Release -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO ENABLE_TESTABILITY=YES
+```
+
 The Keychain tests skip themselves in an unsigned build: the data-protection Keychain needs a host signed with a development team. They run once `Config/Signing.xcconfig` names a team.
 
 UI tests (their own `YanaMacUITests` scheme):

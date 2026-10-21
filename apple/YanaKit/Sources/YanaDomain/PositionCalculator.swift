@@ -5,9 +5,10 @@ public struct Position: Equatable, Sendable {
     public var holdingID: UUID
     public var ticker: String
     public var shares: Decimal
-    /// Average cost per share including buy fees; `nil` once the position is closed.
+    /// Average cost per share including buy fees; `nil` once the position is closed. For options this is per
+    /// underlying share, as brokers quote it.
     public var averageCost: Decimal?
-    /// `shares × averageCost`, or 0 when closed.
+    /// `shares × averageCost × multiplier`, or 0 when closed.
     public var costBasis: Decimal
     /// Currency of the most recent buy, falling back to the holding's trading currency.
     public var costCurrency: Currency
@@ -33,15 +34,16 @@ public enum PositionCalculator {
         var shares: Decimal = 0
         var averageCost: Decimal = 0
         var currency = holding.currency
+        let m = holding.effectiveMultiplier
 
         for t in transactions.filter({ $0.holdingID == holding.id && !$0.isDeleted }).sorted(by: chronological) {
             switch t.kind {
             case .buy:
                 guard let quantity = t.quantity, let price = t.unitPrice else { continue }
                 currency = t.currency
-                let lotCost = quantity * price + t.fee
+                let lotCost = quantity * price * m + t.fee
                 let newShares = shares + quantity
-                averageCost = newShares > 0 ? (shares * averageCost + lotCost) / newShares : 0
+                averageCost = newShares > 0 ? (shares * averageCost * m + lotCost) / (newShares * m) : 0
                 shares = newShares
             case .sell:
                 guard let quantity = t.quantity else { continue }
@@ -54,7 +56,7 @@ public enum PositionCalculator {
         let open = shares > 0
         return Position(holdingID: holding.id, ticker: holding.ticker, shares: shares,
                         averageCost: open ? averageCost : nil,
-                        costBasis: open ? shares * averageCost : 0,
+                        costBasis: open ? shares * averageCost * m : 0,
                         costCurrency: currency)
     }
 }

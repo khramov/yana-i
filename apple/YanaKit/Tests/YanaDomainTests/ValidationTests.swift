@@ -7,6 +7,16 @@ private func issues(_ body: () throws -> Any) -> ValidationError? {
 }
 
 @Suite struct PortfolioValidationTests {
+    @Test func multiplierMustBePositive() throws {
+        for bad in [Decimal(0), Decimal(-1)] {
+            #expect(throws: ValidationError([ValidationIssue(.multiplier, "Multiplier must be greater than 0")])) {
+                try HoldingDraft(ticker: "PBR271217C00027000", assetClass: .option, multiplier: bad).validated()
+            }
+        }
+        #expect(try HoldingDraft(ticker: "PBR271217C00027000", assetClass: .option, multiplier: 100).validated().multiplier == 100)
+        #expect(try HoldingDraft(ticker: "VTI").validated().multiplier == nil)
+    }
+
     @Test func defaultsToEUR() throws {
         let d = try PortfolioDraft(name: "Long term").validated()
         #expect(d.baseCurrency == .eur)
@@ -60,6 +70,13 @@ private func issues(_ body: () throws -> Any) -> ValidationError? {
     @Test func sellWithoutSharesFailsOnShares() {
         let e = issues { try TransactionDraft(kind: .sell, date: date, unitPrice: 130).validated() }
         #expect(e?.message(for: .quantity) == "Shares are required for buy and sell")
+    }
+
+    @Test func sellAtZeroRecordsAnExpiry() throws {
+        let valid = try TransactionDraft(kind: .sell, date: date, quantity: 1, unitPrice: 0).validated()
+        #expect(valid.unitPrice == 0)
+        let e = issues { try TransactionDraft(kind: .sell, date: date, quantity: 1, unitPrice: -1).validated() }
+        #expect(e?.message(for: .unitPrice) == "Price cannot be negative")
     }
 
     @Test func nonPositiveSharesAndPrice() {

@@ -1,0 +1,42 @@
+﻿Statement,Header,Field Name,Field Value
+Statement,Data,BrokerName,Interactive Brokers Ireland Limited
+Statement,Data,BrokerAddress,
+Statement,Data,Title,Activity Statement
+Statement,Data,Period,"August 3, 2026 - October 19, 2026"
+Statement,Data,WhenGenerated,"2026-10-20, 15:22:52 EDT"
+Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Mult,Cost Price,Cost Basis,Close Price,Value,Unrealized P/L,Code
+Open Positions,Data,Summary,Stocks,EUR,AIFS,12,1,10,120,11,132,12,
+Open Positions,Data,Summary,Stocks,EUR,EMIM,7,1,40,280,42,294,14,
+Open Positions,Data,Summary,Stocks,EUR,SXR8,2,1,500,1000,520,1040,40,
+Open Positions,Data,Summary,Stocks,EUR,VWCE,30,1,93.375,2801.25,101,3030,228.75,
+Open Positions,Data,Summary,Stocks,EUR,XEON,4,1,140.25,561,140.5,562,1,
+Open Positions,Total,,Stocks,EUR,,,,,4762.25,,5058,295.75,
+Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Mult,Cost Price,Cost Basis,Close Price,Value,Unrealized P/L,Code
+Open Positions,Data,Summary,Equity and Index Options,USD,PBR 17DEC27 27 C,4,100,2.38,952,4,1600,648,
+Open Positions,Total,,Equity and Index Options,USD,,,,,952,,1600,648,
+Open Positions,Total,,Equity and Index Options,EUR,,,,,850,,1428.57,578.57,
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,EUR,VWCE,"2026-08-14, 10:15:00",10,100,100.5,-1000,-1.25,1001.25,0,5,O
+Trades,SubTotal,,Stocks,EUR,VWCE,,10,,,-1000,-1.25,1001.25,0,5,
+Trades,Data,Order,Stocks,EUR,XEON,"2026-10-07, 11:20:00",4,140,140.1,-560,-1,561,0,0.4,O
+Trades,SubTotal,,Stocks,EUR,XEON,,4,,,-560,-1,561,0,0.4,
+Trades,Total,,Stocks,EUR,,,,,,-1560,-2.25,1562.25,0,5.4, 
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Equity and Index Options,USD,PBR 17DEC27 27 C,"2026-09-25, 15:00:00",1,2,2.1,-200,-1,201,0,10,O
+Trades,Data,Order,Equity and Index Options,USD,PBR 17DEC27 27 C,"2026-09-25, 15:30:00",3,2.5,2.1,-750,-1,751,0,-120,O
+Trades,SubTotal,,Equity and Index Options,USD,PBR 17DEC27 27 C,,4,,,-950,-2,952,0,-110,
+Trades,Total,,Equity and Index Options,USD,,,,,,-950,-2,952,0,-110, 
+Trades,Total,,Equity and Index Options,EUR,,,,,,-848.21,-1.79,850,0,-98.21, 
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,,Proceeds,Comm in EUR,,,MTM in EUR,Code
+Trades,Data,Order,Forex,USD,EUR.USD,"2026-09-25, 15:00:00",-180,1.12,,201.6,0,,,-0.05,AFx
+Trades,Data,Order,Forex,USD,EUR.USD,"2026-09-25, 15:30:00",-670,1.12,,750.4,0,,,0.02,AFx
+Trades,SubTotal,,Forex,USD,EUR.USD,,-850,,,952,0,,,-0.03,
+Trades,Total,,Forex,USD,,,,,,952,0,,,-0.03, 
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Security ID,Underlying,Listing Exch,Multiplier,Type,Code
+Financial Instrument Information,Data,Stocks,AIFS,ISHRS AI INFRASTRC UCITS ETF,747339250,IE000X59ZHE2,AINF,IBIS2,1,ETF,
+Financial Instrument Information,Data,Stocks,EMIM,ISHARES CORE EM IMI ACC,153454120,IE00BKM4GZ66,EMIM,AEB,1,ETF,
+Financial Instrument Information,Data,Stocks,SXR8,ISHARES CORE S&P 500,75776072,IE00B5BMR087,SXR8,IBIS2,1,ETF,
+Financial Instrument Information,Data,Stocks,VWCE,VANG FTSE AW USDA,375858281,IE00BK5BQT80,VWCE,IBIS2,1,ETF,
+Financial Instrument Information,Data,Stocks,XEON,X EUR OVERNIGHT RATE SWAP 1C,46041702,LU0290358497,XEON,IBIS2,1,ETF,
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Underlying,Listing Exch,Multiplier,Expiry,Delivery Month,Type,Strike,Code
+Financial Instrument Information,Data,Equity and Index Options,PBR   271217C00027000,PBR 17DEC27 27 C,850112676,PBR,CBOE,100,2027-12-17,2027-12,C,27,

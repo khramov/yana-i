@@ -104,6 +104,7 @@ final class StoredHolding: StoredRecord {
     var sector: String?
     var assetClass: String
     var currency: String
+    var multiplier: String?
     var createdAt: Date
     var revision: Int64
     var modifiedAt: Date
@@ -119,6 +120,7 @@ final class StoredHolding: StoredRecord {
         sector = r.sector
         assetClass = r.assetClass.rawValue
         currency = r.currency.rawValue
+        multiplier = r.multiplier.map(StoredDecimal.string)
         createdAt = r.createdAt
         revision = r.version.revision
         modifiedAt = r.version.modifiedAt
@@ -133,6 +135,7 @@ final class StoredHolding: StoredRecord {
         sector = r.sector
         assetClass = r.assetClass.rawValue
         currency = r.currency.rawValue
+        multiplier = r.multiplier.map(StoredDecimal.string)
         createdAt = r.createdAt
         version = r.version
         deletedAt = r.deletedAt
@@ -142,6 +145,7 @@ final class StoredHolding: StoredRecord {
         HoldingRecord(id: id, portfolioID: portfolioID, ticker: ticker, name: name, sector: sector,
                       assetClass: AssetClass(rawValue: assetClass) ?? .default,
                       currency: Currency(rawValue: currency) ?? .default,
+                      multiplier: multiplier.flatMap(StoredDecimal.decimal),
                       createdAt: createdAt, version: version, deletedAt: deletedAt)
     }
 
@@ -162,6 +166,12 @@ final class StoredTransaction: StoredRecord {
     var tax: String
     var currency: String
     var notes: String?
+    var importSource: String?
+    /// The four `opening*` fields mirror `OpeningBalance`: all set, or all nil.
+    var openingAsOf: String?
+    var openingCoveredFrom: String?
+    var openingTargetQuantity: String?
+    var openingTargetCostBasis: String?
     var createdAt: Date
     var revision: Int64
     var modifiedAt: Date
@@ -187,6 +197,7 @@ final class StoredTransaction: StoredRecord {
         modifiedAt = r.version.modifiedAt
         deviceID = r.version.deviceID
         deletedAt = r.deletedAt
+        setImportFields(r)
     }
 
     func update(from r: TransactionRecord) {
@@ -201,6 +212,7 @@ final class StoredTransaction: StoredRecord {
         tax = StoredDecimal.string(r.tax)
         currency = r.currency.rawValue
         notes = r.notes
+        setImportFields(r)
         createdAt = r.createdAt
         version = r.version
         deletedAt = r.deletedAt
@@ -215,7 +227,26 @@ final class StoredTransaction: StoredRecord {
                           amount: amount.flatMap(StoredDecimal.decimal),
                           fee: StoredDecimal.decimal(fee) ?? 0, tax: StoredDecimal.decimal(tax) ?? 0,
                           currency: Currency(rawValue: currency) ?? .default, notes: notes,
+                          importSource: importSource.flatMap(ImportSource.init(rawValue:)),
+                          openingBalance: openingBalance,
                           createdAt: createdAt, version: version, deletedAt: deletedAt)
+    }
+
+    private func setImportFields(_ r: TransactionRecord) {
+        importSource = r.importSource?.rawValue
+        openingAsOf = r.openingBalance?.asOf.description
+        openingCoveredFrom = r.openingBalance?.coveredFrom.description
+        openingTargetQuantity = r.openingBalance.map { StoredDecimal.string($0.targetQuantity) }
+        openingTargetCostBasis = r.openingBalance.map { StoredDecimal.string($0.targetCostBasis) }
+    }
+
+    private var openingBalance: OpeningBalance? {
+        guard let asOf = openingAsOf.flatMap(LocalDate.init(string:)),
+              let coveredFrom = openingCoveredFrom.flatMap(LocalDate.init(string:)),
+              let quantity = openingTargetQuantity.flatMap(StoredDecimal.decimal),
+              let cost = openingTargetCostBasis.flatMap(StoredDecimal.decimal)
+        else { return nil }
+        return OpeningBalance(asOf: asOf, targetQuantity: quantity, targetCostBasis: cost, coveredFrom: coveredFrom)
     }
 
     var anyRecord: AnyRecord { .transaction(record) }

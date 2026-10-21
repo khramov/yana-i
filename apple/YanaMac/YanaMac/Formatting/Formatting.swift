@@ -63,6 +63,7 @@ enum Fmt {
         case .etf: return "ETF"
         case .bond: return "Bond"
         case .cash: return "Cash"
+        case .option: return "Option"
         }
     }
 

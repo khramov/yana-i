@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ValidationField: String, Sendable, Hashable {
-    case name, ticker, date, quantity, unitPrice, amount, fee, tax, currency, targets
+    case name, ticker, date, quantity, unitPrice, amount, fee, tax, currency, targets, multiplier
 }
 
 public struct ValidationIssue: Equatable, Sendable {
@@ -73,14 +73,17 @@ public struct HoldingDraft: Equatable, Sendable {
     public var sector: String?
     public var assetClass: AssetClass?
     public var currency: Currency
+    /// Contract size for options; `nil` means 1.
+    public var multiplier: Decimal?
 
     public init(ticker: String, name: String? = nil, sector: String? = nil, assetClass: AssetClass? = nil,
-                currency: Currency = .default) {
+                currency: Currency = .default, multiplier: Decimal? = nil) {
         self.ticker = ticker
         self.name = name
         self.sector = sector
         self.assetClass = assetClass
         self.currency = currency
+        self.multiplier = multiplier
     }
 
     static let allowedTickerCharacters = CharacterSet.uppercaseLetters
@@ -95,8 +98,11 @@ public struct HoldingDraft: Equatable, Sendable {
         if symbol.count > 32 || !symbol.unicodeScalars.allSatisfy(Self.allowedTickerCharacters.contains) {
             throw ValidationError([ValidationIssue(.ticker, "Ticker may only contain letters, digits, '.', '-', '=' and '^'")])
         }
+        if let multiplier, multiplier <= 0 {
+            throw ValidationError([ValidationIssue(.multiplier, "Multiplier must be greater than 0")])
+        }
         return HoldingDraft(ticker: symbol, name: trimmedOrNil(name), sector: trimmedOrNil(sector),
-                            assetClass: assetClass ?? .default, currency: currency)
+                            assetClass: assetClass ?? .default, currency: currency, multiplier: multiplier)
     }
 }
 
@@ -145,7 +151,12 @@ public struct TransactionDraft: Equatable, Sendable {
         switch kind {
         case .buy, .sell:
             requirePositive(quantity, .quantity, "Shares", required: "Shares are required for buy and sell")
-            requirePositive(unitPrice, .unitPrice, "Price", required: "Price is required for buy and sell")
+            if kind == .sell, let unitPrice {
+                // A sell at 0 records an option that expired worthless.
+                if unitPrice < 0 { issues.append(ValidationIssue(.unitPrice, "Price cannot be negative")) }
+            } else {
+                requirePositive(unitPrice, .unitPrice, "Price", required: "Price is required for buy and sell")
+            }
         case .dividend:
             requirePositive(amount, .amount, "Amount", required: "Amount is required for dividends")
             requirePositive(quantity, .quantity, "Shares", required: nil)

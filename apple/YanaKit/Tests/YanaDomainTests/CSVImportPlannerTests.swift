@@ -3,8 +3,9 @@ import Testing
 @testable import YanaDomain
 
 @Suite struct CSVImportPlannerTests {
-    func plan(_ csv: String, existing: [HoldingRecord] = []) throws -> CSVImportPlan {
-        try CSVImportPlanner.plan(csv: csv, portfolioID: portfolioID, existingHoldings: existing, now: epoch, deviceID: deviceA)
+    func plan(_ csv: String, existing: [HoldingRecord] = []) throws -> ImportPlan {
+        ImportReconciler.plan(try CSVImportPlanner.batch(csv: csv), portfolioID: portfolioID, holdings: existing,
+                              transactions: [], now: epoch, deviceID: deviceA)
     }
 
     @Test func twentyRowsThreeTickers() throws {
@@ -14,10 +15,10 @@ import Testing
             csv += "\(ticker),buy,2024-01-\(String(format: "%02d", i + 1)),1,100,0,0,USD,\n"
         }
         let p = try plan(csv)
-        #expect(p.holdingsToCreate.map(\.ticker) == ["AAPL", "MSFT", "VTI"])
-        #expect(p.importedCount == 20)
-        #expect(p.failedCount == 0)
-        #expect(Set(p.transactionsToInsert.map(\.holdingID)) == Set(p.holdingsToCreate.map(\.id)))
+        #expect(p.holdings.map(\.ticker) == ["AAPL", "MSFT", "VTI"])
+        #expect(p.added == 20)
+        #expect(p.errors.count == 0)
+        #expect(Set(p.transactions.map(\.holdingID)) == Set(p.holdings.map(\.id)))
     }
 
     @Test func badTypeRowCreatesNoHolding() throws {
@@ -26,14 +27,14 @@ import Testing
             AAPL,buy,2024-01-02,10,100
             XYZ,transfer,2024-01-03,1,1
             """)
-        #expect(p.holdingsToCreate.map(\.ticker) == ["AAPL"])
-        #expect(p.importedCount == 1)
+        #expect(p.holdings.map(\.ticker) == ["AAPL"])
+        #expect(p.added == 1)
         #expect(p.errors == [CSVLineError(line: 3, message: "type: must be buy/sell/dividend/fee (got \"transfer\")")])
     }
 
     @Test func invalidRowAfterTypeCheckAlsoCreatesNoHolding() throws {
         let p = try plan("ticker,type,date,shares,price\nNEW,buy,2024-01-02,10,\n")
-        #expect(p.holdingsToCreate.isEmpty)
+        #expect(p.holdings.isEmpty)
         #expect(p.errors == [CSVLineError(line: 2, message: "price: Price is required for buy and sell")])
     }
 
@@ -52,7 +53,7 @@ import Testing
             KO,dividend,2024-04-01,50,"12,50",,"1,88",usd,Q1
             KO,fee,2024-04-02,,3,,,,
             """)
-        let div = p.transactionsToInsert[0], fee = p.transactionsToInsert[1]
+        let div = p.transactions[0], fee = p.transactions[1]
         #expect(div.amount == dec("12.5") && div.unitPrice == nil && div.quantity == 50 && div.tax == dec("1.88"))
         #expect(div.currency == .usd && div.notes == "Q1")
         #expect(fee.amount == 3 && fee.currency == .eur)
@@ -60,14 +61,14 @@ import Testing
 
     @Test func unsupportedCurrencyFallsBackToEUR() throws {
         let p = try plan("ticker,type,date,shares,price,currency\nBP.L,buy,2024-01-02,1,5,GBP\n")
-        #expect(p.transactionsToInsert.first?.currency == .eur)
-        #expect(p.holdingsToCreate.first?.currency == .eur)
+        #expect(p.transactions.first?.currency == .eur)
+        #expect(p.holdings.first?.currency == .eur)
     }
 
     @Test func webCompatibleQuotingCRLFAndDecimalComma() throws {
         let csv = "ticker,type,date,shares,price,notes\r\n\"AAPL\",buy,2024-01-02,\"1,5\",\"100,25\",\"said \"\"hi\"\", ok\"\r\n\r\n"
         let p = try plan(csv)
-        let t = try #require(p.transactionsToInsert.first)
+        let t = try #require(p.transactions.first)
         #expect(t.quantity == dec("1.5") && t.unitPrice == dec("100.25") && t.notes == "said \"hi\", ok")
     }
 
@@ -79,10 +80,10 @@ import Testing
         live.version.revision = 3
         let p = try plan("ticker,type,date,shares,price\naapl,buy,2024-01-02,1,1\nMSFT,buy,2024-01-02,1,1\n",
                          existing: [live, gone])
-        #expect(p.holdingsToCreate.map(\.ticker) == ["MSFT"])
-        #expect(p.holdingsToCreate[0].version.revision == 8)
-        #expect(p.holdingsToCreate[0].deletedAt == nil)
-        #expect(p.transactionsToInsert[0].holdingID == live.id)
+        #expect(p.holdings.map(\.ticker) == ["MSFT"])
+        #expect(p.holdings[0].version.revision == 8)
+        #expect(p.holdings[0].deletedAt == nil)
+        #expect(p.transactions[0].holdingID == live.id)
     }
 
     @Test func badNumbersAndMissingTicker() throws {
@@ -93,7 +94,7 @@ import Testing
 
     @Test func sameDayRowsKeepFileOrder() throws {
         let p = try plan("ticker,type,date,shares,price\nA,buy,2024-01-02,10,1\nA,sell,2024-01-02,4,1\n")
-        let h = p.holdingsToCreate[0]
-        #expect(PositionCalculator.position(for: h, transactions: p.transactionsToInsert.reversed()).shares == 6)
+        let h = p.holdings[0]
+        #expect(PositionCalculator.position(for: h, transactions: p.transactions.reversed()).shares == 6)
     }
 }

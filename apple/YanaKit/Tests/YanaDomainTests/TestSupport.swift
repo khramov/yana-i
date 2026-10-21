@@ -19,10 +19,10 @@ var utcCalendar: Calendar {
 let portfolioID = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
 
 func holding(_ ticker: String, currency: Currency = .usd, assetClass: AssetClass = .stock,
-             sector: String? = nil, name: String? = nil) -> HoldingRecord {
+             sector: String? = nil, name: String? = nil, multiplier: Decimal? = nil) -> HoldingRecord {
     HoldingRecord(id: RecordIdentity.holdingID(portfolioID: portfolioID, ticker: ticker), portfolioID: portfolioID,
                   ticker: ticker, name: name, sector: sector, assetClass: assetClass, currency: currency,
-                  createdAt: epoch, version: .initial(at: epoch, deviceID: deviceA))
+                  multiplier: multiplier, createdAt: epoch, version: .initial(at: epoch, deviceID: deviceA))
 }
 
 private let txCounterLock = NSLock()

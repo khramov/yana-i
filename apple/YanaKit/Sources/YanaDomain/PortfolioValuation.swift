@@ -72,7 +72,7 @@ public struct PortfolioValuation: Equatable, Sendable {
             let priceCurrency = quote?.currency ?? h.currency
             let priceRate = quote == nil ? nil : rate(priceCurrency)
             let priceBase = quote.flatMap { q in priceRate.map { q.price * $0 } }
-            let marketValue = priceBase.map { p.shares * $0 }
+            let marketValue = priceBase.map { p.shares * $0 * h.effectiveMultiplier }
             let costBasis = rate(p.costCurrency).map { p.costBasis * $0 }
             let gain = marketValue.flatMap { mv in costBasis.map { mv - $0 } }
             let ret = gain.flatMap { g in costBasis.flatMap { $0 > 0 ? g / $0 * 100 : nil } }

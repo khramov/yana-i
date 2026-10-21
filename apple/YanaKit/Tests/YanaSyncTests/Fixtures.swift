@@ -30,6 +30,24 @@ enum Sample {
         scope: .assetClass, key: "stock", targetPercent: dec("62.5"), createdAt: t0,
         version: RecordVersion(revision: 4, modifiedAt: t0, deviceID: deviceA), deletedAt: t0.addingTimeInterval(1))
 
+    static let optionHolding = HoldingRecord(
+        id: RecordIdentity.holdingID(portfolioID: pid, ticker: "PBR271217C00027000"), portfolioID: pid,
+        ticker: "PBR271217C00027000", name: "PBR 17DEC27 27 C", assetClass: .option, currency: .usd,
+        multiplier: dec("100"), createdAt: t0, version: RecordVersion(revision: 1, modifiedAt: t0, deviceID: deviceA))
+
+    static let openingTransaction = TransactionRecord(
+        id: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!, portfolioID: pid,
+        holdingID: RecordIdentity.holdingID(portfolioID: pid, ticker: "VWCE.DE"), kind: .buy,
+        date: LocalDate(string: "2026-08-03")!, quantity: dec("20"), unitPrice: dec("90"), currency: .eur,
+        notes: "Opening balance", importSource: .ibkr,
+        openingBalance: OpeningBalance(asOf: LocalDate(string: "2026-10-19")!, targetQuantity: dec("30"),
+                                       targetCostBasis: dec("2801.25"),
+                                       coveredFrom: LocalDate(string: "2026-08-03")!),
+        createdAt: Date(timeIntervalSince1970: 0),
+        version: RecordVersion(revision: 1, modifiedAt: t0, deviceID: deviceA))
+
     static let all: [(String, AnyRecord)] = [("portfolio", AnyRecord(portfolio)), ("holding", AnyRecord(holding)),
-                                             ("transaction", AnyRecord(transaction)), ("goal-tombstone", AnyRecord(goalTombstone))]
+                                             ("transaction", AnyRecord(transaction)), ("goal-tombstone", AnyRecord(goalTombstone)),
+                                             ("option-holding", AnyRecord(optionHolding)),
+                                             ("opening-transaction", AnyRecord(openingTransaction))]
 }

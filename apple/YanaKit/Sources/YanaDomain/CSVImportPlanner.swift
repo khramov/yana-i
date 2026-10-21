@@ -10,27 +10,14 @@ public struct CSVLineError: Equatable, Sendable {
     public var message: String
 }
 
-/// What an import will write. Nothing is persisted until the caller saves it.
-public struct CSVImportPlan: Equatable, Sendable {
-    /// New holdings (or re-creations over a tombstone) referenced by valid rows only.
-    public var holdingsToCreate: [HoldingRecord]
-    public var transactionsToInsert: [TransactionRecord]
-    public var errors: [CSVLineError]
-
-    public var importedCount: Int { transactionsToInsert.count }
-    public var failedCount: Int { errors.count }
-}
-
-/// Plans an import in the web app's column format:
-/// `ticker,type,date[,shares,price,fee,tax,currency,notes]`. A dividend or fee row's `price`
-/// is its total amount, and an unsupported or missing currency becomes EUR.
+/// Reads the web app's column format: `ticker,type,date[,shares,price,fee,tax,currency,notes]`. A dividend or
+/// fee row's `price` is its total amount, and an unsupported or missing currency becomes EUR. The batch's range
+/// runs from the earliest to the latest valid row date.
 public enum CSVImportPlanner {
     public static let requiredColumns = ["ticker", "type", "date"]
 
-    /// - Parameter existingHoldings: the portfolio's holdings, tombstones included.
-    public static func plan(csv: String, portfolioID: UUID, existingHoldings: [HoldingRecord],
-                            now: Date, deviceID: UUID) throws -> CSVImportPlan {
-        let rows = CSVParser.parse(csv)
+    public static func batch(csv: String) throws -> ImportBatch {
+        let rows = CSVParser.parse(IBKRStatementParser.stripBOM(csv))
         guard rows.count >= 2 else {
             throw CSVImportError(message: "CSV must have a header row and at least one data row")
         }
@@ -42,14 +29,11 @@ public enum CSVImportPlanner {
         let sharesCol = column("shares"), priceCol = column("price"), feeCol = column("fee"),
             taxCol = column("tax"), currencyCol = column("currency"), notesCol = column("notes")
 
-        let existing = Dictionary(existingHoldings.filter { $0.portfolioID == portfolioID }.map { ($0.id, $0) },
-                                  uniquingKeysWith: { $1 })
-        var created: [UUID: HoldingRecord] = [:]
-        var createdOrder: [UUID] = []
-        var transactions: [TransactionRecord] = []
+        var holdings: [ImportedHolding] = []
+        var imported: [ImportedRow] = []
         var errors: [CSVLineError] = []
 
-        for (index, row) in rows.dropFirst().enumerated() {
+        for row in rows.dropFirst() {
             func cell(_ col: Int?) -> String? {
                 guard let col, col < row.fields.count else { return nil }
                 return row.fields[col]
@@ -95,29 +79,27 @@ public enum CSVImportPlanner {
             } catch let error as ValidationError {
                 let issue = error.issues[0]
                 fail("\(csvColumn(for: issue.field)): \(issue.message)"); continue
+            } catch {
+                fail(error.localizedDescription); continue
             }
 
-            let holdingID = RecordIdentity.holdingID(portfolioID: portfolioID, ticker: ticker)
-            if created[holdingID] == nil, existing[holdingID].map({ $0.isDeleted }) ?? true {
-                let version = existing[holdingID].map { $0.version.bumped(at: now, deviceID: deviceID) }
-                    ?? .initial(at: now, deviceID: deviceID)
-                created[holdingID] = HoldingRecord(id: holdingID, portfolioID: portfolioID, ticker: holdingDraft.ticker,
-                                                   assetClass: holdingDraft.assetClass ?? .default,
-                                                   currency: holdingDraft.currency, createdAt: now, version: version)
-                createdOrder.append(holdingID)
+            if !holdings.contains(where: { $0.ticker == holdingDraft.ticker }) {
+                holdings.append(ImportedHolding(ticker: holdingDraft.ticker, name: nil,
+                                                assetClass: holdingDraft.assetClass ?? .default,
+                                                currency: holdingDraft.currency, multiplier: nil))
             }
-
-            // Spread creation times by a millisecond per row so same-day rows keep file order.
-            let createdAt = now.addingTimeInterval(Double(index) / 1000)
-            transactions.append(TransactionRecord(
-                id: UUID(), portfolioID: portfolioID, holdingID: holdingID, kind: kind, date: date,
-                quantity: valid.quantity, unitPrice: valid.unitPrice, amount: valid.amount,
-                fee: valid.fee ?? 0, tax: valid.tax ?? 0, currency: valid.currency, notes: valid.notes,
-                createdAt: createdAt, version: .initial(at: now, deviceID: deviceID)))
+            imported.append(ImportedRow(line: row.line, ticker: holdingDraft.ticker, kind: kind, date: date,
+                                        quantity: valid.quantity, unitPrice: valid.unitPrice, amount: valid.amount,
+                                        fee: valid.fee ?? 0, tax: valid.tax ?? 0, currency: valid.currency,
+                                        notes: valid.notes))
         }
 
-        return CSVImportPlan(holdingsToCreate: createdOrder.compactMap { created[$0] },
-                             transactionsToInsert: transactions, errors: errors)
+        // With no valid rows nothing is replaced, since replacement is limited to the batch's tickers.
+        let none = LocalDate(year: 1, month: 1, day: 1)!
+        let dates = imported.map(\.date)
+        let range = dates.min().flatMap { lo in dates.max().map { lo...$0 } } ?? (none...none)
+        return ImportBatch(source: .csv, range: range, holdings: holdings, rows: imported, positions: nil,
+                           errors: errors, warnings: [])
     }
 
     /// The web format's column name for a validation field.

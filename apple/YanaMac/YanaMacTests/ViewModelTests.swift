@@ -82,6 +82,50 @@ func addHolding(_ model: AppModel, _ ticker: String) async throws -> HoldingReco
         #expect(model.holdings.count == 1)
     }
 
+    func optionForm(_ model: AppModel, strike: String) -> HoldingFormModel {
+        let form = HoldingFormModel(model: model, editing: nil)
+        form.assetClass = .option
+        form.optionUnderlying = "pbr"
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = .current
+        form.optionExpiry = utc.date(from: DateComponents(year: 2027, month: 12, day: 17))!
+        form.optionRight = .call
+        form.optionStrike = strike
+        form.optionMultiplier = "100"
+        form.currency = .usd
+        return form
+    }
+
+    @Test func optionFormBuildsOCCTicker() async throws {
+        let model = try await makeAppModel()
+        try await model.createPortfolio(PortfolioDraft(name: "P"))
+        let form = optionForm(model, strike: "27")
+        #expect(form.optionPreview?.occSymbol == "PBR271217C00027000")
+        guard case .created(let h) = await form.submit() else { Issue.record("not created"); return }
+        #expect(h.ticker == "PBR271217C00027000" && h.name == "PBR 17DEC27 27 C")
+        #expect(h.assetClass == .option && h.multiplier == 100 && h.currency == .usd)
+    }
+
+    @Test func optionFormRequiresStrike() async throws {
+        let model = try await makeAppModel()
+        try await model.createPortfolio(PortfolioDraft(name: "P"))
+        let form = optionForm(model, strike: "")
+        #expect(await form.submit() == nil)
+        #expect(form.optionError != nil)
+        #expect(model.holdings.isEmpty)
+    }
+
+    @Test func editingOptionKeepsMultiplier() async throws {
+        let model = try await makeAppModel()
+        try await model.createPortfolio(PortfolioDraft(name: "P"))
+        guard case .created(let h) = await optionForm(model, strike: "27").submit() else { Issue.record("not created"); return }
+        let edit = HoldingFormModel(model: model, editing: h)
+        edit.name = "Petrobras call"
+        #expect(await edit.submit() == .updated)
+        let saved = try #require(model.holdings.first { $0.id == h.id })
+        #expect(saved.name == "Petrobras call" && saved.multiplier == 100)
+    }
+
     @Test func unknownTickerCreatesNothing() async throws {
         let model = try await makeAppModel()
         try await model.createPortfolio(PortfolioDraft(name: "P"))
@@ -244,6 +288,18 @@ func addHolding(_ model: AppModel, _ ticker: String) async throws -> HoldingReco
         #expect(Set(model.holdings.map(\.ticker)) == ["VTI", "KO"])
         let vti = try #require(model.valuation?.positions.first { $0.ticker == "VTI" })
         #expect(vti.position.shares == Decimal(string: "12.5"))
+    }
+
+    @Test func ibkrStatementOutcomeCounts() async throws {
+        let model = try await makeAppModel()
+        try await model.createPortfolio(PortfolioDraft(name: "P"))
+        await model.importCSV(from: fixtureURL("ibkr-aug-oct.csv"))
+        guard case .importResult(let first) = model.sheet else { Issue.record("no result sheet"); return }
+        #expect(first.imported == 4 && first.replaced == 0 && first.absorbed == 0 && first.fileError == nil)
+        #expect(first.warnings.isEmpty && first.errors.isEmpty)
+        await model.importCSV(from: fixtureURL("ibkr-aug-oct.csv"))
+        guard case .importResult(let second) = model.sheet else { Issue.record("no result sheet"); return }
+        #expect(second.imported == 4 && second.replaced == 4)
     }
 
     @Test func csvWithoutRequiredColumnsImportsNothing() async throws {

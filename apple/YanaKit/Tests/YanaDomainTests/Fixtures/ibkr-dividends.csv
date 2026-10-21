@@ -1,0 +1,16 @@
+Statement,Header,Field Name,Field Value
+Statement,Data,Title,Activity Statement
+Statement,Data,Period,"January 1, 2026 - March 31, 2026"
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,GBP,VOD,"2026-02-02, 10:00:00",100,0.7,0.7,-70,-1,71,0,0,O
+Dividends,Header,Currency,Date,Description,Amount
+Dividends,Data,EUR,2026-03-25,VWCE(IE00BK5BQT80) Cash Dividend EUR 0.5 per Share (Ordinary Dividend),14
+Dividends,Data,Total,,,14
+Withholding Tax,Header,Currency,Date,Description,Amount,Code
+Withholding Tax,Data,EUR,2026-03-25,VWCE(IE00BK5BQT80) Cash Dividend EUR 0.5 per Share - IE Tax,-2.1,
+Withholding Tax,Data,Total,,,-2.1,
+Corporate Actions,Header,Asset Category,Currency,Report Date,Date/Time,Description,Quantity,Proceeds,Value,Realized P/L,Code
+Corporate Actions,Data,Stocks,EUR,2026-03-10,"2026-03-10, 20:25:00",VWCE(IE00BK5BQT80) Split 2 for 1,28,0,0,0,
+Financial Instrument Information,Header,Asset Category,Symbol,Description,Conid,Security ID,Underlying,Listing Exch,Multiplier,Type,Code
+Financial Instrument Information,Data,Stocks,VWCE,VANG FTSE AW USDA,375858281,IE00BK5BQT80,VWCE,IBIS2,1,ETF,
+Financial Instrument Information,Data,Stocks,VOD,VODAFONE GROUP PLC,9999,GB00BH4HKS39,VOD,LSE,1,COMMON,

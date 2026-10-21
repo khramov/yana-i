@@ -53,11 +53,14 @@ payload bytes unchanged, and must never overwrite or delete that record.
 | `portfolioID` | UUID |
 | `ticker` | string: trimmed and upper-cased, immutable |
 | `name`, `sector` | string, optional |
-| `assetClass` | `stock` \| `etf` \| `bond` \| `cash` |
+| `assetClass` | `stock` \| `etf` \| `bond` \| `cash` \| `option` |
 | `currency` | currency code |
+| `multiplier` | decimal > 0, optional: contract size (usually 100 for options); omitted means 1 |
 | `createdAt` | timestamp |
 
 ### Transaction
+An opening-balance row's `id` = UUIDv5(same namespace, `opening|<holdingID>`), so two devices importing the same statement write the same record. Other transactions use random IDs.
+
 | Key | Type |
 |---|---|
 | `portfolioID`, `holdingID` | UUID |
@@ -69,6 +72,8 @@ payload bytes unchanged, and must never overwrite or delete that record.
 | `fee`, `tax` | decimal ≥ 0 |
 | `currency` | currency code |
 | `notes` | string, optional |
+| `importSource` | `ibkr` \| `csv`, optional: the importer that created the row; omitted for hand entries. A later import of the same source replaces rows dated inside its range |
+| `openingBalance` | object, optional: present only on the importer's opening-balance buy, as `{asOf, coveredFrom, targetCostBasis, targetQuantity}` (dates `YYYY-MM-DD`, decimals as strings); the latest statement's position the row was computed from, and the earliest statement start it is dated on |
 | `createdAt` | timestamp: breaks ties between same-day trades |
 
 ### Goal

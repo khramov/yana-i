@@ -24,6 +24,25 @@ protocol StoredRecord: PersistentModel {
     var deletedAt: Date? { get set }
     var needsUpload: Bool { get set }
     var anyRecord: AnyRecord { get }
+    /// Matches the row with `id`. Each model builds it on its concrete type: a `#Predicate` written in generic
+    /// code reaches `id` through this protocol, which SwiftData cannot translate once the optimizer specializes it.
+    static func withID(_ id: UUID) -> Predicate<Self>
+}
+
+extension StoredPortfolio {
+    static func withID(_ id: UUID) -> Predicate<StoredPortfolio> { #Predicate { $0.id == id } }
+}
+
+extension StoredHolding {
+    static func withID(_ id: UUID) -> Predicate<StoredHolding> { #Predicate { $0.id == id } }
+}
+
+extension StoredTransaction {
+    static func withID(_ id: UUID) -> Predicate<StoredTransaction> { #Predicate { $0.id == id } }
+}
+
+extension StoredGoal {
+    static func withID(_ id: UUID) -> Predicate<StoredGoal> { #Predicate { $0.id == id } }
 }
 
 extension StoredRecord {

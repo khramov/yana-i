@@ -158,7 +158,7 @@ actor PortfolioStore {
     // MARK: - Helpers
 
     private func fetch<M: StoredRecord>(_ type: M.Type, _ id: UUID) throws -> M? {
-        var descriptor = FetchDescriptor<M>(predicate: #Predicate { $0.id == id })
+        var descriptor = FetchDescriptor<M>(predicate: M.withID(id))
         descriptor.fetchLimit = 1
         return try modelContext.fetch(descriptor).first
     }

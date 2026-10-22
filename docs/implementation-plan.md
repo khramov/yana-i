@@ -316,7 +316,7 @@ For local use, no auth layer needed. If deployed to a VPS, add HTTP Basic Auth a
 
 ## 7. Build Stages
 
-See [plan.md](plan.md) for the full stage-by-stage breakdown (P1–P10).
+See [plan.md](plan.md) for the full stage-by-stage breakdown (P1–P11).
 
 ---
 

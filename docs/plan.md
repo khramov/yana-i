@@ -12,6 +12,7 @@
 | P8 | Growth chart — portfolio value over time | — |
 | P9 | Diversification charts — by sector / holding / asset class | — |
 | P10 | Income page + Dividend calendar | — |
+| P11 | Goals & portfolio plan — dedicated targets workspace and rebalancing progress | — |
 
 ---
 
@@ -216,3 +217,28 @@ Deliverables:
 | 6 | Income by holding table |
 | 7 | Dividend calendar grid component |
 | 8 | Last-refreshed timestamp + manual refresh button |
+
+---
+
+### P11 — Goals & Portfolio Plan
+
+**Goal:** give investors a dedicated workspace to define allocation targets using the holdings already in the active portfolio, then understand progress toward that plan.
+
+Deliverables:
+- `/goals` page and primary navigation entry; allocation targets are no longer edited from the Analytics chart
+- Holding and asset-class target views with current allocation, target allocation, and deviation
+- Holding dropdown populated from the active portfolio's existing holdings; each option shows ticker and name, and already-selected holdings are excluded
+- Selective target list: add only the holdings the investor wants to plan for, set a target percentage, and remove a target when it no longer applies
+- Live total with 100% validation, explicit clear action, and clear saving/error feedback
+- Server validation that prevents stale, unknown, duplicate, or cross-portfolio holdings from being saved as targets
+- Analytics and recommendations retain read-only goal progress and link to `/goals` for edits
+
+| Step | Work |
+|---|---|
+| 1 | Harden `PUT /api/goals`: validate target totals, duplicate keys, and holding membership in the active portfolio before replacing any saved targets |
+| 2 | Add `/goals` route, navigation, and responsive goal-management workspace |
+| 3 | Build the holding picker from `GET /api/holdings`; show ticker/name, exclude selected rows, and provide an empty portfolio state |
+| 4 | Build target add/remove controls, percentage inputs, live total, clear action, and save/error states for holding and asset-class scopes |
+| 5 | Display current, target, and deviation values; surface saved targets for holdings that later become unavailable |
+| 6 | Replace the Analytics modal with a Goals link and update recommendation empty states to the same destination |
+| 7 | Add API/component coverage and run lint, type-check, build, and responsive manual QA |

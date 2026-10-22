@@ -41,12 +41,9 @@
 
 - [x] 7.1 Implement the SwiftData `@Model` types and repositories for `Portfolio.store` (records with UUID foreign keys, `needsUpload`, `pendingRemotePayload`, device identity, engine state) using a single `ModelActor` for writes; verify in-memory repository tests for CRUD round-trips to domain structs, holding uniqueness, the holding-delete guard message, portfolio cascade tombstones, and goal-scope replacement as upserts plus tombstones.
 - [x] 7.2 Implement `MarketCache.store` repositories (quotes, FX, dividend events, one value snapshot per portfolio per local day) conforming to the market-data cache protocol; verify in-memory tests for snapshot uniqueness per day and for deleting and rebuilding the cache without touching `Portfolio.store`.
-- [ ] 7.3 Implement the Keychain `CredentialStore` (generic password, non-synchronizable, this-device-only accessibility) with save/replace/remove; verify Keychain tests in the app test target and that the item attributes report `kSecAttrSynchronizable` false.
 
 ## 8. iCloud sync (YanaMac)
 
-- [ ] 8.1 Implement the `CKSyncEngine` adapter for `SyncTransport` (private database, `Portfolio` zone, record mapping of `payload`/`schemaVersion`/`revision`/`modifiedAt`/`deviceID`/`deleted`, engine-state persistence, send/fetch handling, `serverRecordChanged` routed through `Merge`); verify mapping unit tests and a manual development-environment run where a record created offline uploads after relaunch.
-- [ ] 8.2 Handle account status and events (no account, restricted, temporarily unavailable, sign-in re-enqueue, sign-out/switch with a blocking pending-changes warning followed by local removal) and register for remote notifications; verify state-machine unit tests for every event, plus a manual check that switching iCloud accounts never shows or uploads the previous account's data.
 - [x] 8.3 Expose a `SyncStatus` model (up to date, syncing, pending count, offline, error with reason, last successful sync, read-only notice for records needing an app update) and a Sync Now action; verify unit tests derive each status from coordinator state.
 
 ## 9. macOS workspace UI (YanaMac)
@@ -56,16 +53,12 @@
 - [x] 9.3 Build the Transactions view (newest-first `Table`, ticker/type/year filters, create/edit sheet with inline validation, delete confirmation) and the CSV import (open panel and window drop, result sheet with per-line errors); verify a UI test that edits a buy and sees holdings update, and an import test with a fixture CSV containing one bad row.
 - [x] 9.4 Build the Income view (monthly bar chart, trailing 12 months, forward annual with an unavailable state, per-holding table) and the Dividends view (year filter, totals, yield on cost, upcoming calendar); verify view-model tests against calculator fixtures and accessibility labels on the chart marks.
 - [x] 9.5 Build the Analytics view (allocation chart with holding/sector/asset-class grouping, goals editor with sum validation, recommendations table, value-history chart with range selection) and daily snapshot writing; verify view-model tests for range filtering and goal-save errors, and VoiceOver labels per allocation slice.
-- [ ] 9.6 Build the Settings scene (portfolio rename, base currency, delete; iCloud status and Sync Now; market-data provider name, unofficial-source notice, last refresh; credential fields shown only for providers that require one); verify a UI test that changing base currency recalculates values, and a test with the keyed test provider that saving and removing a credential updates the Keychain.
 - [x] 9.7 Apply locale-aware `FormatStyle` formatting for currency, percent, number, and date across every view, and check light/dark appearance; verify snapshot or UI tests in light and dark mode and with a non-English locale (e.g. `de_DE` decimal comma).
 
 ## 10. Integration verification
 
 - [x] 10.1 Run `swift test` in `apple/YanaKit`, `xcodebuild test -scheme YanaMac`, `npm run lint`, and `npm run build`; verify all pass and that no file outside `apple/`, `.gitignore`, and lint configuration changed in the web app, except fixing pre-existing lint errors (`components/analytics/growth-chart.tsx`) so `npm run lint` passes.
-- [ ] 10.2 Run the manual two-Mac checklist on one development-environment iCloud account: empty first launch, CSV import on Mac A appearing on Mac B, concurrent offline edits converging, delete vs stale edit staying deleted, the same ticker added on both Macs merging into one holding, offline editing with relaunch upload, and caches/credentials absent from CloudKit Dashboard; record the results in `apple/docs/sync-verification.md`.
-- [ ] 10.3 Deploy the CloudKit schema from development to production and verify sync between two Macs with a production-signed build, recording the result in `apple/docs/sync-verification.md`.
 
-## Workflow follow-up
+## Deferred
 
-- Fill in the real bundle ID, team, and CloudKit container in `Config/Signing.xcconfig`, and choose the distribution channel before task 10.3.
-- Archive the change after implementation and review are complete.
+Tasks 7.3, 8.1, 8.2, 9.6, 10.2 and 10.3 have code but still need verification on a signed build or manual iCloud runs. They moved to `apple/docs/possible-improvements.md`, along with the signing setup follow-up.

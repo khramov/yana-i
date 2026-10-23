@@ -22,6 +22,10 @@ Inside `YanaMac/YanaMac`:
 - macOS 14 or later
 - Xcode 16 or later, selected with `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
 
+## Make targets
+
+From `apple/`, `make build` builds the app unsigned, `make desktop` builds it in Release and copies `YanaMac.app` to the Desktop, and `make test` runs the package and app tests. `make test-kit`, `make test-app`, `make test-release` and `make test-ui` run one suite each. They wrap the commands below.
+
 ## Build
 
 From the repository root:

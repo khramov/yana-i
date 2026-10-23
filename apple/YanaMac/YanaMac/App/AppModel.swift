@@ -5,7 +5,7 @@ import YanaMarketData
 import YanaSync
 
 enum AppSection: String, CaseIterable, Identifiable, Sendable {
-    case dashboard, holdings, transactions, income, dividends, analytics
+    case dashboard, holdings, transactions, income, dividends, analytics, goals
 
     var id: String { rawValue }
 
@@ -17,6 +17,7 @@ enum AppSection: String, CaseIterable, Identifiable, Sendable {
         case .income: return "Income"
         case .dividends: return "Dividends"
         case .analytics: return "Analytics"
+        case .goals: return "Goals"
         }
     }
 
@@ -28,6 +29,7 @@ enum AppSection: String, CaseIterable, Identifiable, Sendable {
         case .income: return "chart.bar"
         case .dividends: return "banknote"
         case .analytics: return "chart.pie"
+        case .goals: return "target"
         }
     }
 }
@@ -120,6 +122,17 @@ final class AppModel {
         }
     }
 
+    /// The scope the Goals section shows; Analytics sets it before handing off.
+    var goalScope: GoalScope {
+        didSet {
+            guard oldValue != goalScope else { return }
+            defaults.set(goalScope.rawValue, forKey: Key.goalScope)
+        }
+    }
+
+    /// Unsaved goal edits per portfolio and scope.
+    let goalDrafts: GoalDraftStore
+
     var selectedPortfolio: PortfolioRecord? { portfolios.first { $0.id == selectedPortfolioID } }
     var repository: PortfolioRepository { environment.repository }
     var provider: any MarketDataProvider { environment.market.provider }
@@ -129,12 +142,15 @@ final class AppModel {
     private enum Key {
         static let portfolio = "selection.portfolio"
         static let section = "selection.section"
+        static let goalScope = "selection.goalScope"
     }
 
     init(environment: AppEnvironment, sync: SyncController) {
         self.environment = environment
         self.sync = sync
         section = environment.defaults.string(forKey: Key.section).flatMap(AppSection.init(rawValue:)) ?? .dashboard
+        goalScope = environment.defaults.string(forKey: Key.goalScope).flatMap(GoalScope.init(rawValue:)) ?? .holding
+        goalDrafts = GoalDraftStore(defaults: environment.defaults)
         selectedPortfolioID = environment.defaults.string(forKey: Key.portfolio).flatMap(UUID.init(uuidString:))
         sync.onRecordsChanged = { [weak self] in Task { await self?.reloadAll() } }
     }
@@ -151,6 +167,7 @@ final class AppModel {
     func reloadAll() async {
         do {
             portfolios = try await repository.store.portfolios()
+            goalDrafts.removeDrafts(keeping: Set(portfolios.map(\.id)))
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -326,9 +343,9 @@ final class AppModel {
 
     // MARK: - Goals
 
-    func saveGoals(_ draft: GoalScopeDraft) async throws {
-        guard let portfolio = selectedPortfolio else { throw PortfolioRepositoryError.notFound }
-        try await repository.saveGoals(draft, for: portfolio.id)
+    /// Saves to the portfolio a draft was made for, never the one that happens to be selected.
+    func saveGoals(_ draft: GoalScopeDraft, for portfolioID: UUID) async throws {
+        try await repository.saveGoals(draft, for: portfolioID)
         await afterWrite()
     }
 

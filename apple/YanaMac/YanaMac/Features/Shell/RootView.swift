@@ -77,6 +77,7 @@ struct SectionView: View {
             case .income: IncomeView(model: model)
             case .dividends: DividendsView(model: model)
             case .analytics: AnalyticsView(model: model)
+            case .goals: GoalsView(model: model)
             }
         }
         .navigationTitle(model.section.title)

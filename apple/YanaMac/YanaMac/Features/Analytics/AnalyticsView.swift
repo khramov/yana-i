@@ -8,22 +8,28 @@ struct AnalyticsView: View {
     @State private var grouping = AllocationGrouping.assetClass
     @State private var range = HistoryRange.threeMonths
     @State private var snapshots: [ValueSnapshot] = []
-    @State private var goals: GoalsEditorModel?
 
     private var base: Currency { model.selectedPortfolio?.baseCurrency ?? .default }
+
+    /// The goal scope matching the grouping; sectors have no goals.
+    private var goalScope: GoalScope? {
+        switch grouping {
+        case .holding: return .holding
+        case .assetClass: return .assetClass
+        case .sector: return nil
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 allocation
-                if let goals { GoalsSection(model: model, editor: goals) }
                 history
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: model.dataVersion) {
-            if goals == nil { goals = GoalsEditorModel(model: model, locale: locale) } else { goals?.load() }
             await loadSnapshots()
         }
     }
@@ -36,6 +42,13 @@ struct AnalyticsView: View {
             HStack {
                 Text("Allocation").font(.headline)
                 Spacer()
+                if let scope = goalScope {
+                    Button("Edit Goals") {
+                        model.goalScope = scope
+                        model.section = .goals
+                    }
+                    .accessibilityIdentifier("editGoals")
+                }
                 Picker("Group by", selection: $grouping) {
                     ForEach(AllocationGrouping.allCases, id: \.self) { Text(AllocationModel.groupingTitle($0)).tag($0) }
                 }
@@ -115,91 +128,5 @@ struct AnalyticsView: View {
     private func loadSnapshots() async {
         guard let id = model.selectedPortfolio?.id else { snapshots = []; return }
         snapshots = (try? await model.environment.cache.snapshots(for: id)) ?? []
-    }
-}
-
-/// The goals editor and the recommendations that follow from the saved goals.
-private struct GoalsSection: View {
-    let model: AppModel
-    @Bindable var editor: GoalsEditorModel
-    @Environment(\.locale) private var locale
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Goals").font(.headline)
-                Spacer()
-                Picker("Scope", selection: $editor.scope) {
-                    Text("Asset class").tag(GoalScope.assetClass)
-                    Text("Holding").tag(GoalScope.holding)
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-            }
-            ForEach($editor.rows) { $row in
-                HStack {
-                    if editor.scope == .assetClass {
-                        Picker("Asset class", selection: $row.key) {
-                            ForEach(AssetClass.allCases, id: \.self) { Text(Fmt.assetClass($0)).tag($0.rawValue) }
-                        }
-                        .labelsHidden()
-                        .frame(width: 140)
-                    } else {
-                        TextField("Ticker", text: $row.key).frame(width: 140)
-                    }
-                    TextField("Target", text: $row.percent).frame(width: 80)
-                        .accessibilityLabel("Target percent for \(row.key)")
-                    Text("%")
-                    Button { editor.remove(row.id) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Remove \(row.key)")
-                }
-            }
-            HStack {
-                Button("Add Target") { editor.addRow() }
-                Text("Total \(Fmt.percent(editor.total, locale: locale, digits: 1))")
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Save Goals") { Task { await editor.save() } }
-                    .accessibilityIdentifier("saveGoals")
-            }
-            if let error = editor.error {
-                Text(error).font(.callout).foregroundStyle(.red).accessibilityIdentifier("goalsError")
-            }
-            recommendations
-        }
-    }
-
-    private var recommendations: some View {
-        let rows = model.valuation.map { RebalanceCalculator.rows($0, goals: model.goals, scope: editor.scope) } ?? []
-        let base = model.selectedPortfolio?.baseCurrency ?? .default
-        return VStack(alignment: .leading, spacing: 6) {
-            Text("Recommendations").font(.subheadline.weight(.semibold)).padding(.top, 8)
-            if rows.allSatisfy({ $0.targetPercent == nil }) {
-                Text("Save goals to see how far each position is from its target.").foregroundStyle(.secondary)
-            } else {
-                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 4) {
-                    GridRow {
-                        Text("Key"); Text("Current"); Text("Target"); Text("Drift"); Text("Buy"); Text("Shares")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    ForEach(rows, id: \.key) { r in
-                        GridRow {
-                            Text(editor.scope == .assetClass ? AssetClass(rawValue: r.key).map(Fmt.assetClass) ?? r.key : r.key)
-                                .fontWeight(.medium)
-                            Text(Fmt.percent(r.currentPercent, locale: locale, digits: 1)).monospacedDigit()
-                            Text(Fmt.percent(r.targetPercent, locale: locale, digits: 1)).monospacedDigit()
-                            Text(Fmt.percent(r.driftPercent, locale: locale, signed: true, digits: 1)).monospacedDigit()
-                            Text(Fmt.money(r.buyAmount, base, locale: locale)).monospacedDigit()
-                            Text(r.buyShares.map { Fmt.number($0.rounded(scale: 4), locale: locale) } ?? "").monospacedDigit()
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-                .accessibilityIdentifier("recommendations")
-            }
-        }
     }
 }

@@ -174,6 +174,7 @@ func date(_ s: String) -> LocalDate { LocalDate(string: s)! }
     @Test func goalScopeReplacementUpsertsAndTombstones() async throws {
         let repo = try await makeRepository()
         let p = try await repo.createPortfolio(PortfolioDraft(name: "P"))
+        for ticker in ["VTI", "BND"] { _ = try await repo.addHolding(HoldingDraft(ticker: ticker, currency: .usd), to: p.id) }
         let first = try await repo.saveGoals(GoalScopeDraft(scope: .assetClass, targets: [
             GoalTarget(key: "stock", percent: 40), GoalTarget(key: "bond", percent: 60),
         ]), for: p.id)
@@ -203,6 +204,38 @@ func date(_ s: String) -> LocalDate { LocalDate(string: s)! }
             ]), for: p.id)
         }
         #expect(try await repo.store.goals(inPortfolio: p.id).count == 2)
+    }
+
+    @Test func holdingGoalsMustNameALiveHoldingOfThePortfolio() async throws {
+        let repo = try await makeRepository()
+        let p = try await repo.createPortfolio(PortfolioDraft(name: "P"))
+        let other = try await repo.createPortfolio(PortfolioDraft(name: "Other"))
+        _ = try await repo.addHolding(HoldingDraft(ticker: "VTI", currency: .usd), to: p.id)
+        _ = try await repo.addHolding(HoldingDraft(ticker: "VXUS", currency: .usd), to: other.id)
+        try await repo.saveGoals(GoalScopeDraft(scope: .holding, targets: [GoalTarget(key: "VTI", percent: 100)]), for: p.id)
+
+        func rejection(_ targets: [GoalTarget]) async -> ValidationError? {
+            do { try await repo.saveGoals(GoalScopeDraft(scope: .holding, targets: targets), for: p.id); return nil }
+            catch let e as ValidationError { return e } catch { return nil }
+        }
+        // Another portfolio's holding, and a normalized duplicate, are rejected and change nothing.
+        #expect(await rejection([GoalTarget(key: "VTI", percent: 50), GoalTarget(key: "vxus", percent: 50)])?.issues
+            == [ValidationIssue(.targets, "VXUS is not a holding in this portfolio", key: "VXUS")])
+        #expect(await rejection([GoalTarget(key: "vti", percent: 50), GoalTarget(key: "VTI", percent: 50)])?.issues.map(\.key)
+            == ["VTI"])
+        let stored = try await repo.store.goals(inPortfolio: p.id)
+        #expect(stored.map(\.key) == ["VTI"] && stored.first?.targetPercent == 100)
+    }
+
+    @Test func goalOfADeletedHoldingStaysStored() async throws {
+        let repo = try await makeRepository()
+        let p = try await repo.createPortfolio(PortfolioDraft(name: "P"))
+        let vti = try await repo.addHolding(HoldingDraft(ticker: "VTI", currency: .usd), to: p.id).holding
+        _ = try await repo.addHolding(HoldingDraft(ticker: "BND", currency: .usd), to: p.id)
+        try await repo.saveGoals(GoalScopeDraft(scope: .holding, targets: [GoalTarget(key: "VTI", percent: 60),
+                                                                           GoalTarget(key: "BND", percent: 40)]), for: p.id)
+        try await repo.deleteHolding(vti.id)
+        #expect(Set(try await repo.store.goals(inPortfolio: p.id).map(\.key)) == ["VTI", "BND"])
     }
 
     @Test func csvImportCreatesHoldingsAndTransactionsTogether() async throws {

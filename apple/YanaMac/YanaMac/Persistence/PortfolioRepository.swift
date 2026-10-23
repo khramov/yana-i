@@ -164,11 +164,13 @@ actor PortfolioRepository {
     // MARK: - Goals
 
     /// Replaces all targets of one scope: changed or new keys are upserted under their derived IDs and keys no
-    /// longer listed are tombstoned. The other scope is untouched.
+    /// longer listed are tombstoned. The other scope is untouched. Holding targets must name a live holding of
+    /// the portfolio; an invalid draft changes nothing.
     @discardableResult
     func saveGoals(_ draft: GoalScopeDraft, for portfolioID: UUID) async throws -> [GoalRecord] {
-        let valid = try draft.validated()
         _ = try await live(try await store.portfolio(portfolioID))
+        let tickers = Set(try await store.holdings(inPortfolio: portfolioID).map(\.ticker))
+        let valid = try draft.validated(holdingTickers: tickers)
         let existing = Dictionary(uniqueKeysWithValues: try await store.goals(inPortfolio: portfolioID, includingDeleted: true)
             .filter { $0.scope == valid.scope }.map { ($0.id, $0) })
         let at = now()

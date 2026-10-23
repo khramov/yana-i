@@ -7,10 +7,13 @@ public enum ValidationField: String, Sendable, Hashable {
 public struct ValidationIssue: Equatable, Sendable {
     public var field: ValidationField
     public var message: String
+    /// The normalized goal key an issue about one target refers to, so editors can show it on that row.
+    public var key: String?
 
-    public init(_ field: ValidationField, _ message: String) {
+    public init(_ field: ValidationField, _ message: String, key: String? = nil) {
         self.field = field
         self.message = message
+        self.key = key
     }
 }
 
@@ -206,9 +209,11 @@ public struct GoalScopeDraft: Equatable, Sendable {
         self.targets = targets
     }
 
-    /// Returns targets with normalized keys. Each must be > 0, keys unique, and a non-empty set must
-    /// add up to 100 ± 0.5.
-    public func validated() throws -> GoalScopeDraft {
+    /// Returns targets with normalized keys. Each must be > 0 and ≤ 100, keys unique, and a non-empty set must
+    /// add up to 100 ± 0.5. With `holdingTickers`, holding keys must also be among them (normalized).
+    /// Issues about one target carry its normalized key.
+    public func validated(holdingTickers: Set<String>? = nil) throws -> GoalScopeDraft {
+        let members = holdingTickers.map { Set($0.map { RecordIdentity.normalizeGoalKey($0, scope: .holding) }) }
         var issues: [ValidationIssue] = []
         var seen = Set<String>()
         var normalized: [GoalTarget] = []
@@ -220,15 +225,20 @@ public struct GoalScopeDraft: Equatable, Sendable {
                 continue
             }
             if scope == .assetClass, AssetClass(rawValue: key) == nil {
-                issues.append(ValidationIssue(.targets, "\(key) is not an asset class"))
+                issues.append(ValidationIssue(.targets, "\(key) is not an asset class", key: key))
                 continue
             }
             if !seen.insert(key).inserted {
-                issues.append(ValidationIssue(.targets, "\(key) appears more than once"))
+                issues.append(ValidationIssue(.targets, "\(key) appears more than once", key: key))
                 continue
             }
+            if scope == .holding, let members, !members.contains(key) {
+                issues.append(ValidationIssue(.targets, "\(key) is not a holding in this portfolio", key: key))
+            }
             if target.percent <= 0 {
-                issues.append(ValidationIssue(.targets, "Target for \(key) must be greater than 0"))
+                issues.append(ValidationIssue(.targets, "Target for \(key) must be greater than 0", key: key))
+            } else if target.percent > 100 {
+                issues.append(ValidationIssue(.targets, "Target for \(key) must be at most 100%", key: key))
             }
             normalized.append(GoalTarget(key: key, percent: target.percent))
         }

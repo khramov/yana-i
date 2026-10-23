@@ -381,25 +381,6 @@ func addHolding(_ model: AppModel, _ ticker: String) async throws -> HoldingReco
         #expect(days(.oneYear).count == 4)
     }
 
-    @Test func goalSaveErrorsAndSuccess() async throws {
-        let model = try await makeAppModel()
-        try await model.createPortfolio(PortfolioDraft(name: "P"))
-        let editor = GoalsEditorModel(model: model, scope: .assetClass, locale: Locale(identifier: "en_US"))
-        editor.rows = [.init(key: "stock", percent: "60"), .init(key: "bond", percent: "30")]
-        #expect(await editor.save() == false)
-        #expect(editor.error == "Targets must add up to 100% (currently 90.0%)")
-        #expect(model.goals.isEmpty)
-
-        editor.rows[1].percent = ""
-        #expect(await editor.save() == false)
-        #expect(editor.error?.contains("bond") == true)
-
-        editor.rows[1].percent = "40"
-        #expect(await editor.save())
-        #expect(model.goals.map(\.key).sorted() == ["bond", "stock"])
-        #expect(editor.rows.count == 2 && editor.error == nil)
-    }
-
     @Test func allocationSlicesAnnounceLabelValueAndPercent() async throws {
         let model = try await makeAppModel()
         try await model.createPortfolio(PortfolioDraft(name: "P", baseCurrency: .usd))

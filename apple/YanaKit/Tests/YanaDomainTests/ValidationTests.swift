@@ -157,4 +157,31 @@ private func issues(_ body: () throws -> Any) -> ValidationError? {
         #expect(issues { try GoalScopeDraft(scope: .assetClass, targets: [GoalTarget(key: "crypto", percent: 100)]).validated() }?
             .message(for: .targets) == "crypto is not an asset class")
     }
+
+    @Test func issuesNameTheirNormalizedKey() {
+        let e = issues {
+            try GoalScopeDraft(scope: .holding, targets: [GoalTarget(key: "vti", percent: 50),
+                                                          GoalTarget(key: " VTI", percent: 50),
+                                                          GoalTarget(key: "bnd", percent: 0)]).validated()
+        }
+        #expect(e?.issues.map(\.key) == ["VTI", "BND"])
+        #expect(e?.issues.map(\.message) == ["VTI appears more than once", "Target for BND must be greater than 0"])
+    }
+
+    @Test func rejectsTargetsAbove100() {
+        let e = issues { try GoalScopeDraft(scope: .assetClass, targets: [GoalTarget(key: "stock", percent: 101)]).validated() }
+        #expect(e?.issues == [ValidationIssue(.targets, "Target for stock must be at most 100%", key: "stock")])
+    }
+
+    @Test func checksHoldingMembershipWhenGiven() throws {
+        let draft = GoalScopeDraft(scope: .holding, targets: [GoalTarget(key: "vti", percent: 60),
+                                                              GoalTarget(key: "VXUS", percent: 40)])
+        let e = issues { try draft.validated(holdingTickers: ["VTI", "bnd"]) }
+        #expect(e?.issues == [ValidationIssue(.targets, "VXUS is not a holding in this portfolio", key: "VXUS")])
+        #expect(try draft.validated(holdingTickers: ["vti", "VXUS"]).targets.map(\.key) == ["VTI", "VXUS"])
+        // Without a membership set, and for asset classes, membership is not checked.
+        #expect(try draft.validated().targets.count == 2)
+        #expect(try GoalScopeDraft(scope: .assetClass, targets: [GoalTarget(key: "etf", percent: 100)])
+            .validated(holdingTickers: []).targets.count == 1)
+    }
 }

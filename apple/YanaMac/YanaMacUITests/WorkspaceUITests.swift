@@ -357,3 +357,42 @@ final class ChartAccessibilityUITests: YanaUITestCase {
         XCTAssertTrue(bar.waitForExistence(timeout: 5), "income bar is announced with its month and amount")
     }
 }
+
+final class GoalsUITests: YanaUITestCase {
+    func testEditGoalsFromAnalyticsAndBuildAPlanWithThePicker() throws {
+        let app = launch()
+        createFirstPortfolio(app, name: "P")
+        showSection(app, "Holdings")
+        addHolding(app, "VTI")
+        addBuy(app, ticker: "VTI", shares: "4", price: "200")
+
+        // Analytics groups by asset class, so Edit Goals opens that scope.
+        showSection(app, "Analytics")
+        let edit = element(app, "editGoals")
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.click()
+        let scope = element(app, "goalsScope")
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        let assetClasses = scope.radioButtons.matching(NSPredicate(format: "label BEGINSWITH 'Asset classes'")).firstMatch
+        XCTAssertEqual(assetClasses.value as? Bool, true, "Edit Goals opens the matching scope")
+
+        scope.radioButtons.matching(NSPredicate(format: "label BEGINSWITH 'Holdings'")).firstMatch.click()
+        element(app, "addGoalTarget").click()
+        let search = app.textFields["goalPickerSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.typeText("vti\r")
+
+        // Focus moved to the new row's target field, so typing goes straight into it.
+        let target = app.textFields["goalTarget-VTI"]
+        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        app.typeText("100")
+        XCTAssertEqual(target.value as? String, "100")
+        app.typeKey("s", modifierFlags: .command)
+
+        let saved = scope.radioButtons.matching(NSPredicate(format: "label BEGINSWITH 'Holdings, 1 target'")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5), "⌘S saves the plan")
+        let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+}
